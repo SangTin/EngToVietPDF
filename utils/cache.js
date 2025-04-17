@@ -105,61 +105,6 @@ async function getAllKeys() {
   }
 }
 
-// Lấy thống kê cache
-async function getStats() {
-  try {
-    const keys = await redisClient.keys(`${REDIS_PREFIX}*`);
-    const stats = {
-      totalItems: keys.length,
-      types: {},
-      oldestExpiry: null,
-      newestExpiry: null
-    };
-
-    // Phân loại keys theo type
-    for (const fullKey of keys) {
-      const key = fullKey.replace(REDIS_PREFIX, '');
-      const type = key.split('_')[0];
-      
-      if (!stats.types[type]) {
-        stats.types[type] = 0;
-      }
-      stats.types[type]++;
-      
-      // Lấy thời gian hết hạn
-      const ttl = await redisClient.ttl(fullKey);
-      const expiry = Date.now() + (ttl * 1000);
-      
-      if (stats.oldestExpiry === null || expiry < stats.oldestExpiry) {
-        stats.oldestExpiry = expiry;
-      }
-      
-      if (stats.newestExpiry === null || expiry > stats.newestExpiry) {
-        stats.newestExpiry = expiry;
-      }
-    }
-    
-    return stats;
-  } catch (error) {
-    console.error('Lỗi khi lấy thống kê cache:', error);
-    return {
-      totalItems: 0,
-      types: {},
-      oldestExpiry: null,
-      newestExpiry: null
-    };
-  }
-}
-
-// Hàm tương thích với API cũ để không phải sửa code quá nhiều
-function getMemoryCache() {
-  return {
-    size: 0,
-    keys: () => ({ next: () => ({ value: null }) }),
-    entries: () => []
-  };
-}
-
 // Đóng kết nối Redis khi ứng dụng kết thúc
 async function closeConnection() {
   await redisClient.quit();
@@ -184,7 +129,5 @@ module.exports = {
   clear,
   cacheExists,
   getAllKeys,
-  getStats,
-  closeConnection,
-  getMemoryCache
+  closeConnection
 };
