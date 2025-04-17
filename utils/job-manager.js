@@ -40,7 +40,6 @@ const instance = {
     async updateJobStatus(jobId, status, currentStep = null, message = null) {
         const jobKey = `job_${jobId}`;
         const job = await cache.get(jobKey) || {};
-        console.log('job', job);
 
         const updatedJob = {
             ...job,
@@ -85,7 +84,6 @@ const instance = {
         }
 
         const currentStep = job.currentStep || null;
-        console.log('currentStep', currentStep);
 
         const completed = await cache.get(`job_${jobId}_completed`);
 
