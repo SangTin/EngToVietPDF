@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Công cụ OCR, Dịch và Tạo PDF</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -56,6 +57,11 @@
             margin-top: 15px;
         }
 
+        .progress-section {
+            margin-top: 30px;
+            display: none;
+        }
+
         .result-section {
             margin-top: 30px;
             display: none;
@@ -98,6 +104,47 @@
             margin-top: 10px;
             display: none;
         }
+
+        .status-label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .status-icon {
+            margin-right: 5px;
+        }
+
+        .status-pending {
+            color: #6c757d;
+        }
+
+        .status-processing {
+            color: #0d6efd;
+            animation: spin 1.5s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .status-completed {
+            color: #198754;
+        }
+
+        .status-error {
+            color: #dc3545;
+        }
+
+        .progress {
+            height: 20px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 
@@ -134,14 +181,63 @@
             <button class="btn btn-primary btn-lg" id="processButton" disabled>Xử lý hình ảnh</button>
         </div>
 
-        <div class="loading" id="loadingSpinner">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Đang xử lý...</span>
-            </div>
-            <p class="mt-2">Đang xử lý hình ảnh, vui lòng đợi...</p>
-        </div>
-
         <div class="error-message" id="errorMessage"></div>
+
+        <!-- Phần hiển thị tiến trình xử lý -->
+        <div class="progress-section" id="progressSection">
+            <h3>Tiến trình xử lý</h3>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <span class="status-label">Trạng thái:</span>
+                            <span id="jobStatus" class="status-processing">
+                                <i class="bi bi-hourglass-split status-icon"></i>
+                                Đang xử lý
+                            </span>
+                        </div>
+                        <div>
+                            <span class="status-label">Job ID:</span>
+                            <span id="jobId">-</span>
+                        </div>
+                    </div>
+
+                    <div class="progress">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                            role="progressbar" style="width: 0%"></div>
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="status-indicator" id="ocrStatus">
+                                <i class="bi bi-circle status-icon status-pending"></i>
+                            </div>
+                            <span>OCR - Nhận dạng văn bản</span>
+                        </div>
+
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="status-indicator" id="translateStatus">
+                                <i class="bi bi-circle status-icon status-pending"></i>
+                            </div>
+                            <span>Dịch văn bản</span>
+                        </div>
+
+                        <div class="d-flex align-items-center">
+                            <div class="status-indicator" id="pdfStatus">
+                                <i class="bi bi-circle status-icon status-pending"></i>
+                            </div>
+                            <span>Tạo file PDF</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-warning" id="processingInfo">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                Quá trình xử lý diễn ra độc lập trên server. Bạn có thể đóng trang này và quay lại sau.
+            </div>
+        </div>
 
         <div class="result-section" id="resultSection">
             <h3>Kết quả</h3>
@@ -158,22 +254,23 @@
 
             <div class="text-center">
                 <a id="downloadPdfButton" class="btn btn-success btn-lg" target="_blank">
-                    Tải về PDF
+                    <i class="bi bi-file-earmark-pdf"></i> Tải về PDF
                 </a>
+                <button id="newProcessBtn" class="btn btn-primary btn-lg ms-2">
+                    <i class="bi bi-arrow-repeat"></i> Xử lý ảnh mới
+                </button>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Đặt đoạn mã này trong file public/index.html
-
         document.addEventListener('DOMContentLoaded', function () {
             const uploadArea = document.getElementById('uploadArea');
             const fileInput = document.getElementById('fileInput');
             const previewImage = document.getElementById('previewImage');
             const processButton = document.getElementById('processButton');
-            const loadingSpinner = document.getElementById('loadingSpinner');
+            const progressSection = document.getElementById('progressSection');
             const resultSection = document.getElementById('resultSection');
             const originalText = document.getElementById('originalText');
             const translatedText = document.getElementById('translatedText');
@@ -181,6 +278,19 @@
             const errorMessage = document.getElementById('errorMessage');
             const cacheStatusAlert = document.getElementById('cacheStatusAlert');
             const cacheStatusText = document.getElementById('cacheStatusText');
+            const newProcessBtn = document.getElementById('newProcessBtn');
+
+            // Các phần tử hiển thị trạng thái job
+            const jobStatus = document.getElementById('jobStatus');
+            const jobId = document.getElementById('jobId');
+            const progressBar = document.getElementById('progressBar');
+            const ocrStatus = document.getElementById('ocrStatus');
+            const translateStatus = document.getElementById('translateStatus');
+            const pdfStatus = document.getElementById('pdfStatus');
+
+            // Biến lưu trữ thông tin polling
+            let currentJobId = null;
+            let pollingInterval = null;
 
             // Xử lý sự kiện click vào vùng upload
             uploadArea.addEventListener('click', function () {
@@ -240,11 +350,14 @@
 
             // Xử lý khi nhấn nút xử lý hình ảnh
             processButton.addEventListener('click', function () {
-                // Hiển thị loading spinner
-                loadingSpinner.style.display = 'block';
+                // Hiển thị phần tiến trình xử lý
+                progressSection.style.display = 'block';
                 resultSection.style.display = 'none';
                 cacheStatusAlert.style.display = 'none';
                 hideError();
+
+                // Reset trạng thái các bước xử lý
+                resetProgress();
 
                 // Bắt đầu đo thời gian xử lý
                 const startTime = performance.now();
@@ -254,7 +367,7 @@
                 formData.append('image', fileInput.files[0]);
 
                 // Gửi request lên server
-                fetch('/process-image', {
+                fetch('/api/process-image', {
                     method: 'POST',
                     body: formData
                 })
@@ -265,41 +378,208 @@
                         return response.json();
                     })
                     .then(data => {
-                        // Kết thúc đo thời gian xử lý
-                        const endTime = performance.now();
-                        const processingTime = (endTime - startTime) / 1000; // Chuyển đổi từ ms sang s
-
-                        // Ẩn loading spinner
-                        loadingSpinner.style.display = 'none';
-
-                        if (data.error) {
-                            showError(data.error);
-                            return;
+                        if (!data.success) {
+                            throw new Error(data.message || 'Đã xảy ra lỗi khi xử lý yêu cầu');
                         }
 
-                        // Hiển thị kết quả
-                        originalText.textContent = data.originalText;
-                        translatedText.textContent = data.translatedText;
-                        downloadPdfButton.href = data.pdfUrl;
-                        resultSection.style.display = 'block';
+                        // Lưu jobId và hiển thị
+                        currentJobId = data.jobId;
+                        console.log('Job ID:', currentJobId);
+                        jobId.textContent = currentJobId;
 
-                        // Hiển thị thông báo nếu kết quả đến từ cache
-                        if (data.fromCache) {
-                            cacheStatusText.textContent = `Kết quả được phục vụ từ cache, giúp tăng tốc xử lý! (${processingTime.toFixed(2)} giây)`;
-                            cacheStatusAlert.style.display = 'block';
-                            cacheStatusAlert.className = 'alert alert-success mt-4';
-                        } else {
-                            cacheStatusText.textContent = `Xử lý mới hoàn tất trong ${processingTime.toFixed(2)} giây. Kết quả đã được lưu vào cache cho lần sau.`;
-                            cacheStatusAlert.style.display = 'block';
-                            cacheStatusAlert.className = 'alert alert-info mt-4';
-                        }
+                        // Bắt đầu polling để kiểm tra trạng thái
+                        startPolling();
                     })
                     .catch(error => {
-                        loadingSpinner.style.display = 'none';
                         showError(error.message || 'Đã xảy ra lỗi trong quá trình xử lý');
                         console.error('Error:', error);
+                        progressSection.style.display = 'none';
                     });
             });
+
+            // Bắt đầu kiểm tra trạng thái job định kỳ
+            function startPolling() {
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                }
+
+                // Kiểm tra ngay lập tức
+                checkJobStatus();
+
+                // Sau đó kiểm tra mỗi 100ms
+                pollingInterval = setInterval(checkJobStatus, 100);
+            }
+
+            // Kiểm tra trạng thái job
+            async function checkJobStatus() {
+                if (!currentJobId) return;
+
+                try {
+                    const response = await fetch(`/api/job/${currentJobId}`);
+
+                    if (!response.ok) {
+                        throw new Error('Lỗi kiểm tra trạng thái job');
+                    }
+
+                    const data = await response.json();
+
+                    if (!data.success) {
+                        throw new Error(data.message || 'Lỗi kiểm tra trạng thái');
+                    }
+
+                    const { job } = data;
+
+                    // Cập nhật trạng thái job
+                    updateJobStatus(job);
+
+                    // Nếu job hoàn thành, hiển thị kết quả
+                    if (job.status === 'completed') {
+                        displayResults(job);
+                        stopPolling();
+                    }
+                    // Nếu job bị lỗi
+                    else if (job.status === 'error') {
+                        updateStatusError(job.message || 'Có lỗi xảy ra trong quá trình xử lý');
+                        stopPolling();
+                    }
+                } catch (error) {
+                    console.error('Lỗi kiểm tra trạng thái:', error);
+                    updateStatusError(error.message);
+                }
+            }
+
+            // Cập nhật trạng thái job trên giao diện
+            function updateJobStatus(job) {
+                // Cập nhật trạng thái tổng quát
+                if (job.status === 'pending') {
+                    jobStatus.className = 'status-pending';
+                    jobStatus.innerHTML = '<i class="bi bi-clock status-icon"></i> Đang chờ xử lý';
+                    progressBar.style.width = '0%';
+                }
+                else if (job.status === 'processing') {
+                    jobStatus.className = 'status-processing';
+                    jobStatus.innerHTML = '<i class="bi bi-hourglass-split status-icon"></i> Đang xử lý';
+                }
+                else if (job.status === 'completed') {
+                    jobStatus.className = 'status-completed';
+                    jobStatus.innerHTML = '<i class="bi bi-check-circle status-icon"></i> Hoàn thành';
+                    progressBar.style.width = '100%';
+                }
+                else if (job.status === 'error') {
+                    jobStatus.className = 'status-error';
+                    jobStatus.innerHTML = '<i class="bi bi-exclamation-triangle status-icon"></i> Lỗi';
+                }
+
+                // Cập nhật trạng thái dựa trên bước xử lý hiện tại (currentStep)
+                if (job.currentStep) {
+                    // Nếu đang xử lý OCR
+                    if (job.currentStep === 'ocr') {
+                        ocrStatus.innerHTML = '<i class="bi bi-arrow-repeat status-icon status-processing-animation"></i> Đang nhận dạng văn bản...';
+                        translateStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ dịch văn bản';
+                        pdfStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ tạo PDF';
+                        progressBar.style.width = '15%';
+                    }
+                    // Nếu đang xử lý dịch
+                    else if (job.currentStep === 'translate') {
+                        ocrStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã nhận dạng';
+                        translateStatus.innerHTML = '<i class="bi bi-arrow-repeat status-icon status-processing-animation"></i> Đang dịch...';
+                        pdfStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ tạo PDF';
+                        progressBar.style.width = '45%';
+                    }
+                    // Nếu đang xử lý PDF
+                    else if (job.currentStep === 'pdf') {
+                        ocrStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã nhận dạng';
+                        translateStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã dịch';
+                        pdfStatus.innerHTML = '<i class="bi bi-arrow-repeat status-icon status-processing-animation"></i> Đang tạo PDF...';
+                        progressBar.style.width = '75%';
+                    }
+                    return; // Thoát khỏi hàm nếu đã xử lý currentStep
+                }
+
+                // Xử lý khi không có currentStep nhưng có result (hoàn thành từng phần)
+                if (job.result) {
+                    // Tiến trình OCR
+                    if (job.result.ocr) {
+                        ocrStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã nhận dạng';
+                        if (progressBar.style.width === '0%') {
+                            progressBar.style.width = '33%';
+                        }
+                    } else {
+                        ocrStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ nhận dạng';
+                    }
+
+                    // Tiến trình dịch
+                    if (job.result.translate) {
+                        translateStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã dịch';
+                        if (progressBar.style.width === '33%') {
+                            progressBar.style.width = '66%';
+                        }
+                    } else {
+                        translateStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ dịch';
+                    }
+
+                    // Tiến trình tạo PDF
+                    if (job.result.pdf) {
+                        pdfStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã tạo PDF';
+                        progressBar.style.width = '100%';
+                    } else {
+                        pdfStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ tạo PDF';
+                    }
+                }
+            }
+
+            // Hiển thị kết quả khi job hoàn thành
+            function displayResults(job) {
+                // Ẩn phần tiến trình, hiển thị phần kết quả
+                progressSection.style.display = 'none';
+                resultSection.style.display = 'block';
+
+                // Hiển thị văn bản OCR và văn bản đã dịch
+                if (job.result) {
+                    originalText.textContent = job.result.ocr || 'Không có dữ liệu';
+                    translatedText.textContent = job.result.translate || 'Không có dữ liệu';
+
+                    // Cập nhật URL tải xuống PDF
+                    downloadPdfButton.href = `/api/download/${currentJobId}`;
+                }
+
+                // Hiển thị thông báo xử lý từ cache (nếu có)
+                const processingTime = (performance.now() - startTime) / 1000;
+                if (job.fromCache) {
+                    cacheStatusText.textContent = `Kết quả được phục vụ từ cache, giúp tăng tốc xử lý! (${processingTime.toFixed(2)} giây)`;
+                    cacheStatusAlert.style.display = 'block';
+                    cacheStatusAlert.className = 'alert alert-success mt-4';
+                } else {
+                    cacheStatusText.textContent = `Xử lý hoàn tất trong ${processingTime.toFixed(2)} giây. Kết quả đã được lưu vào cache cho lần sau.`;
+                    cacheStatusAlert.style.display = 'block';
+                    cacheStatusAlert.className = 'alert alert-info mt-4';
+                }
+            }
+
+            // Cập nhật trạng thái khi có lỗi
+            function updateStatusError(message) {
+                jobStatus.className = 'status-error';
+                jobStatus.innerHTML = '<i class="bi bi-exclamation-triangle status-icon"></i> Lỗi';
+                showError(message);
+            }
+
+            // Reset trạng thái các bước xử lý
+            function resetProgress() {
+                ocrStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i>';
+                translateStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i>';
+                pdfStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i>';
+                progressBar.style.width = '0%';
+                jobStatus.className = 'status-pending';
+                jobStatus.innerHTML = '<i class="bi bi-clock status-icon"></i> Đang chờ xử lý';
+            }
+
+            // Dừng polling
+            function stopPolling() {
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                }
+            }
 
             // Hiển thị thông báo lỗi
             function showError(message) {
@@ -311,6 +591,23 @@
             function hideError() {
                 errorMessage.style.display = 'none';
             }
+
+            // Xử lý nút "Xử lý ảnh mới"
+            newProcessBtn.addEventListener('click', function () {
+                // Reset giao diện
+                progressSection.style.display = 'none';
+                resultSection.style.display = 'none';
+                cacheStatusAlert.style.display = 'none';
+                fileInput.value = '';
+                previewImage.style.display = 'none';
+                processButton.disabled = true;
+                currentJobId = null;
+                stopPolling();
+                hideError();
+            });
+
+            // Biến lưu thời gian bắt đầu
+            let startTime;
         });
     </script>
 </body>

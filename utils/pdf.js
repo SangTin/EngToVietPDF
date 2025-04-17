@@ -1,16 +1,23 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
+const path = require('path');
 
-const OUT_FILE = "./output/output.pdf";
+// Đảm bảo thư mục output tồn tại
+const OUTPUT_DIR = "./output";
+if (!fs.existsSync(OUTPUT_DIR)) {
+    fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+}
 
-function createPDF(text) {
+const DEFAULT_OUT_FILE = path.join(OUTPUT_DIR, "output.pdf");
+
+function createPDF(text, outputPath = DEFAULT_OUT_FILE) {
     const doc = new PDFDocument();
-    doc.pipe(fs.createWriteStream(OUT_FILE));
+    doc.pipe(fs.createWriteStream(outputPath));
     doc.font('font/Roboto-Regular.ttf')
         .fontSize(14)
         .text(text, 100, 100);
     doc.end();
-    return OUT_FILE;
+    return outputPath;
 }
 
 module.exports = {

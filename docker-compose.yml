@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  web-server:
+    build: .
+    container_name: ocr-web-server
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - shared_data:/app/uploads
+      - shared_data:/app/output
+    command: npm start
+  
+  ocr-worker:
+    build: .
+    container_name: ocr-worker
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - shared_data:/app/uploads
+      - shared_data:/app/output
+    command: npm run ocr-worker
+
+  translate-worker:
+    build: .
+    container_name: translate-worker
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - shared_data:/app/uploads
+      - shared_data:/app/output
+    command: npm run translate-worker
+
+  pdf-worker:
+    build: .
+    container_name: pdf-worker
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - shared_data:/app/uploads
+      - shared_data:/app/output
+    command: npm run pdf-worker
+
+volumes:
+  shared_data:

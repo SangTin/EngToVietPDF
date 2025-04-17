@@ -1,39 +1,29 @@
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
+const { createClient } = require('redis');
 
-// Đường dẫn đến file lưu trữ cache
-const CACHE_DIR = path.join(process.cwd(), 'cache');
-const CACHE_FILE = path.join(CACHE_DIR, 'cache-data.json');
+// Cấu hình kết nối Redis
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const REDIS_PREFIX = 'ocr_app:cache:';
 
-// Kích thước tối đa của cache trong bộ nhớ (số lượng items)
-const MAX_MEMORY_CACHE_SIZE = 100;
+// Thời gian hết hạn cache (mặc định 24 giờ - tính bằng giây)
+const DEFAULT_EXPIRY = 24 * 60 * 60; // 24 giờ tính bằng giây
 
-// Thời gian hết hạn cache (mặc định 24 giờ - tính bằng ms)
-const DEFAULT_EXPIRY = 24 * 60 * 60 * 1000;
+// Khởi tạo Redis client
+const redisClient = createClient({
+  url: REDIS_URL
+});
 
-// Cache trong bộ nhớ
-let memoryCache = new Map();
+// Kết nối và xử lý lỗi
+(async () => {
+  redisClient.on('error', (err) => console.error('Redis Client Error', err));
+  redisClient.on('connect', () => console.log('Đã kết nối đến Redis server'));
+  
+  await redisClient.connect();
+})().catch(console.error);
 
-// Đảm bảo thư mục cache tồn tại
-if (!fs.existsSync(CACHE_DIR)) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-}
-
-// Tạo cache file nếu chưa tồn tại
-if (!fs.existsSync(CACHE_FILE)) {
-  fs.writeFileSync(CACHE_FILE, JSON.stringify({}), 'utf8');
-}
-
-function cacheExists(key) {
-  // Kiểm tra trong bộ nhớ cache trước
-  if (memoryCache.has(key)) {
-    return true;
-  }
-
-  // Nếu không có trong bộ nhớ, kiểm tra trong file cache
-  const fileCache = loadCacheFromFile();
-  return fileCache[key] !== undefined;
+// Tạo key đầy đủ với prefix
+function getFullKey(key) {
+  return `${REDIS_PREFIX}${key}`;
 }
 
 // Tính hash của dữ liệu để làm key
@@ -42,129 +32,149 @@ function generateCacheKey(data, type) {
   return `${type}_${hash}`;
 }
 
-// Đọc cache từ file
-function loadCacheFromFile() {
+// Kiểm tra cache tồn tại
+async function cacheExists(key) {
   try {
-    const cacheData = fs.readFileSync(CACHE_FILE, 'utf8');
-    return JSON.parse(cacheData || '{}');
+    const ttl = await redisClient.ttl(getFullKey(key));
+    return ttl > 0; // TTL > 0 nghĩa là key tồn tại và chưa hết hạn
   } catch (error) {
-    console.error('Lỗi khi đọc cache từ file:', error);
-    return {};
-  }
-}
-
-// Lưu cache vào file
-function saveCacheToFile(cacheData) {
-  try {
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(cacheData, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Lỗi khi lưu cache vào file:', error);
+    console.error('Lỗi khi kiểm tra cache tồn tại:', error);
     return false;
   }
 }
 
 // Thêm dữ liệu vào cache
-function set(key, data, timeToLive = DEFAULT_EXPIRY) {
-  // Tạo đối tượng cache với thời gian hết hạn
-  const cacheItem = {
-    data,
-    expiry: Date.now() + timeToLive
-  };
-
-  // Lưu vào memory cache
-  memoryCache.set(key, cacheItem);
-
-  // Nếu memory cache vượt quá kích thước, xóa item cũ nhất
-  if (memoryCache.size > MAX_MEMORY_CACHE_SIZE) {
-    const oldestKey = memoryCache.keys().next().value;
-    memoryCache.delete(oldestKey);
+async function set(key, data, timeToLive = DEFAULT_EXPIRY) {
+  try {
+    const serializedData = JSON.stringify(data);
+    await redisClient.setEx(getFullKey(key), timeToLive, serializedData);
+    return true;
+  } catch (error) {
+    console.error('Lỗi khi lưu cache:', error);
+    return false;
   }
-
-  // Lưu vào file cache
-  const fileCache = loadCacheFromFile();
-  fileCache[key] = cacheItem;
-  saveCacheToFile(fileCache);
 }
 
 // Lấy dữ liệu từ cache
-function get(key) {
-  // Kiểm tra trong memory cache trước
-  if (memoryCache.has(key)) {
-    const cacheItem = memoryCache.get(key);
-
-    // Kiểm tra thời gian hết hạn
-    if (cacheItem.expiry > Date.now()) {
-      return cacheItem.data;
-    } else {
-      // Xóa khỏi cache nếu đã hết hạn
-      memoryCache.delete(key);
-    }
+async function get(key) {
+  try {
+    const data = await redisClient.get(getFullKey(key));
+    if (!data) return null;
+    
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Lỗi khi lấy cache:', error);
+    return null;
   }
-
-  // Nếu không có trong memory cache, kiểm tra trong file cache
-  const fileCache = loadCacheFromFile();
-  if (fileCache[key] && fileCache[key].expiry > Date.now()) {
-    // Nếu tìm thấy trong file cache, thêm vào memory cache
-    memoryCache.set(key, fileCache[key]);
-    return fileCache[key].data;
-  }
-
-  // Không tìm thấy hoặc đã hết hạn
-  return null;
 }
 
 // Xóa cache theo key
-function remove(key) {
-  // Xóa từ memory cache
-  memoryCache.delete(key);
-
-  // Xóa từ file cache
-  const fileCache = loadCacheFromFile();
-  if (fileCache[key]) {
-    delete fileCache[key];
-    saveCacheToFile(fileCache);
+async function remove(key) {
+  try {
+    await redisClient.del(getFullKey(key));
+    return true;
+  } catch (error) {
+    console.error('Lỗi khi xóa cache:', error);
+    return false;
   }
 }
 
 // Xóa tất cả cache
-function clear() {
-  // Xóa memory cache
-  memoryCache.clear();
-
-  // Xóa file cache
-  saveCacheToFile({});
-}
-
-// Xóa các cache đã hết hạn
-function prune() {
-  const now = Date.now();
-
-  // Xóa các cache đã hết hạn từ memory
-  for (const [key, value] of memoryCache.entries()) {
-    if (value.expiry <= now) {
-      memoryCache.delete(key);
+async function clear() {
+  try {
+    // Xóa tất cả các key có prefix của ứng dụng
+    const keys = await redisClient.keys(`${REDIS_PREFIX}*`);
+    if (keys.length > 0) {
+      await redisClient.del(keys);
     }
-  }
-
-  // Xóa các cache đã hết hạn từ file
-  const fileCache = loadCacheFromFile();
-  let modified = false;
-
-  for (const key in fileCache) {
-    if (fileCache[key].expiry <= now) {
-      delete fileCache[key];
-      modified = true;
-    }
-  }
-
-  if (modified) {
-    saveCacheToFile(fileCache);
+    return true;
+  } catch (error) {
+    console.error('Lỗi khi xóa tất cả cache:', error);
+    return false;
   }
 }
 
-// Lên lịch xóa cache định kỳ (mỗi giờ)
-setInterval(prune, 60 * 60 * 1000);
+// Lấy tất cả các key trong cache
+async function getAllKeys() {
+  try {
+    const keys = await redisClient.keys(`${REDIS_PREFIX}*`);
+    return keys.map(key => key.replace(REDIS_PREFIX, ''));
+  } catch (error) {
+    console.error('Lỗi khi lấy tất cả cache keys:', error);
+    return [];
+  }
+}
+
+// Lấy thống kê cache
+async function getStats() {
+  try {
+    const keys = await redisClient.keys(`${REDIS_PREFIX}*`);
+    const stats = {
+      totalItems: keys.length,
+      types: {},
+      oldestExpiry: null,
+      newestExpiry: null
+    };
+
+    // Phân loại keys theo type
+    for (const fullKey of keys) {
+      const key = fullKey.replace(REDIS_PREFIX, '');
+      const type = key.split('_')[0];
+      
+      if (!stats.types[type]) {
+        stats.types[type] = 0;
+      }
+      stats.types[type]++;
+      
+      // Lấy thời gian hết hạn
+      const ttl = await redisClient.ttl(fullKey);
+      const expiry = Date.now() + (ttl * 1000);
+      
+      if (stats.oldestExpiry === null || expiry < stats.oldestExpiry) {
+        stats.oldestExpiry = expiry;
+      }
+      
+      if (stats.newestExpiry === null || expiry > stats.newestExpiry) {
+        stats.newestExpiry = expiry;
+      }
+    }
+    
+    return stats;
+  } catch (error) {
+    console.error('Lỗi khi lấy thống kê cache:', error);
+    return {
+      totalItems: 0,
+      types: {},
+      oldestExpiry: null,
+      newestExpiry: null
+    };
+  }
+}
+
+// Hàm tương thích với API cũ để không phải sửa code quá nhiều
+function getMemoryCache() {
+  return {
+    size: 0,
+    keys: () => ({ next: () => ({ value: null }) }),
+    entries: () => []
+  };
+}
+
+// Đóng kết nối Redis khi ứng dụng kết thúc
+async function closeConnection() {
+  await redisClient.quit();
+}
+
+// Xử lý đóng kết nối khi ứng dụng dừng
+process.on('SIGINT', async () => {
+  await closeConnection();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await closeConnection();
+  process.exit(0);
+});
 
 module.exports = {
   generateCacheKey,
@@ -172,7 +182,9 @@ module.exports = {
   get,
   remove,
   clear,
-  prune,
   cacheExists,
-  getMemoryCache: () => memoryCache,
+  getAllKeys,
+  getStats,
+  closeConnection,
+  getMemoryCache
 };

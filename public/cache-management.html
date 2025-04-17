@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quản lý Cache - OCR, Dịch và PDF</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -31,6 +32,14 @@
 
         .stats-card {
             background-color: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .cache-types {
+            background-color: #e9f7ef;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
@@ -103,6 +112,19 @@
             color: #0d6efd;
             font-size: 1.2rem;
         }
+
+        .badge {
+            font-size: 0.8rem;
+            padding: 0.35em 0.65em;
+        }
+
+        .cache-item {
+            margin-bottom: 5px;
+            padding: 8px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #0d6efd;
+        }
     </style>
 </head>
 
@@ -130,7 +152,7 @@
             </div>
 
             <div class="stat-item">
-                <span class="stat-label">Kích thước cache:</span>
+                <span class="stat-label">Kích thước bộ nhớ cache:</span>
                 <span class="stat-value" id="cacheSize">Đang tải...</span>
             </div>
 
@@ -145,10 +167,42 @@
             </div>
         </div>
 
+        <div class="cache-types">
+            <h4 class="mb-3">Thống kê theo loại cache</h4>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card text-center mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">OCR</h5>
+                            <p class="card-text" id="ocrCacheCount">0</p>
+                            <span class="badge bg-primary">Nhận dạng văn bản</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Dịch</h5>
+                            <p class="card-text" id="translateCacheCount">0</p>
+                            <span class="badge bg-success">Dịch thuật</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Job</h5>
+                            <p class="card-text" id="jobCacheCount">0</p>
+                            <span class="badge bg-info">Thông tin tiến trình</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="cache-performance">
-            <h4 class="performance-title">Hiệu suất Cache</h4>
-            <p>Cache giúp tăng tốc độ xử lý bằng cách lưu trữ kết quả của các yêu cầu trước đó. Khi một yêu cầu mới đến,
-                hệ thống sẽ kiểm tra xem kết quả đã được lưu trong cache chưa trước khi thực hiện các xử lý tốn kém.</p>
+            <h4 class="performance-title">Hiệu suất Message Queue + Cache</h4>
+            <p>Hệ thống kết hợp Message Queue và Cache để tối ưu hiệu suất xử lý:</p>
 
             <div class="performance-stat">
                 <span>Thời gian xử lý trung bình không có cache:</span>
@@ -163,6 +217,33 @@
             <div class="performance-stat">
                 <span>Tiết kiệm tài nguyên CPU:</span>
                 <span>~90%</span>
+            </div>
+            
+            <div class="alert alert-info mt-3">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                <strong>Message Queue</strong> giúp phân tán công việc giữa các worker, trong khi <strong>Cache</strong> giúp tránh xử lý lặp lại các yêu cầu tương tự.
+            </div>
+        </div>
+        
+        <div class="mb-4">
+            <h4>Hàng đợi tin nhắn (Message Queue)</h4>
+            <div class="card">
+                <div class="card-body">
+                    <div id="queueStats">
+                        <div class="stat-item">
+                            <span class="stat-label">Tin nhắn trong hàng đợi OCR:</span>
+                            <span class="stat-value" id="ocrQueueCount">Đang tải...</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Tin nhắn trong hàng đợi dịch:</span>
+                            <span class="stat-value" id="translateQueueCount">Đang tải...</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Tin nhắn trong hàng đợi PDF:</span>
+                            <span class="stat-value" id="pdfQueueCount">Đang tải...</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -202,6 +283,16 @@
             const cacheSize = document.getElementById('cacheSize');
             const oldestCache = document.getElementById('oldestCache');
             const newestCache = document.getElementById('newestCache');
+            
+            // Thống kê loại cache
+            const ocrCacheCount = document.getElementById('ocrCacheCount');
+            const translateCacheCount = document.getElementById('translateCacheCount');
+            const jobCacheCount = document.getElementById('jobCacheCount');
+            
+            // Thống kê hàng đợi
+            const ocrQueueCount = document.getElementById('ocrQueueCount');
+            const translateQueueCount = document.getElementById('translateQueueCount');
+            const pdfQueueCount = document.getElementById('pdfQueueCount');
 
             // Hàm hiển thị thông báo
             function showAlert(element, message, duration = 3000) {
@@ -216,17 +307,21 @@
             // Hàm lấy thống kê cache
             async function fetchCacheStats() {
                 try {
-                    const response = await fetch('/cache-stats');
+                    loadingSpinner.style.display = 'block';
+                    
+                    const response = await fetch('/api/cache-stats');
 
                     if (!response.ok) {
                         throw new Error('Không thể lấy thống kê cache');
                     }
 
                     const data = await response.json();
+                    
+                    loadingSpinner.style.display = 'none';
 
-                    // Cập nhật UI
-                    totalCacheItems.textContent = data.totalCacheItems; // Fixed the property name
-                    cacheSize.textContent = data.cacheSize;
+                    // Cập nhật UI thống kê chung
+                    totalCacheItems.textContent = data.totalItems || 0;
+                    cacheSize.textContent = data.memorySize || '0 KB';
 
                     // Định dạng thời gian
                     if (data.oldestCache) {
@@ -242,7 +337,19 @@
                     } else {
                         newestCache.textContent = 'Không có';
                     }
+                    
+                    // Cập nhật thống kê theo loại
+                    ocrCacheCount.textContent = data.typeCounts?.ocr || 0;
+                    translateCacheCount.textContent = data.typeCounts?.translate || 0;
+                    jobCacheCount.textContent = data.typeCounts?.job || 0;
+                    
+                    // Cập nhật thống kê hàng đợi
+                    ocrQueueCount.textContent = data.queueCounts?.ocr || 0;
+                    translateQueueCount.textContent = data.queueCounts?.translate || 0;
+                    pdfQueueCount.textContent = data.queueCounts?.pdf || 0;
+                    
                 } catch (error) {
+                    loadingSpinner.style.display = 'none';
                     console.error('Error fetching cache stats:', error);
                     showAlert(errorAlert, 'Không thể lấy thống kê cache: ' + error.message);
                 }
@@ -253,7 +360,7 @@
                 try {
                     loadingSpinner.style.display = 'block';
 
-                    const response = await fetch('/clear-cache', {
+                    const response = await fetch('/api/clear-cache', {
                         method: 'POST'
                     });
 
@@ -270,7 +377,7 @@
                         // Cập nhật lại thống kê
                         fetchCacheStats();
                     } else {
-                        throw new Error(data.error || 'Đã xảy ra lỗi');
+                        throw new Error(data.message || 'Đã xảy ra lỗi');
                     }
                 } catch (error) {
                     loadingSpinner.style.display = 'none';
