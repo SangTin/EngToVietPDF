@@ -81,7 +81,6 @@ async function consumeQueue(queueName, callback) {
     channel.consume(queueName, async (msg) => {
         if (msg !== null) {
             const data = JSON.parse(msg.content.toString());
-            console.log(`Nhận tin nhắn từ ${queueName}:`, data);
 
             try {
                 await callback(data);
