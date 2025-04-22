@@ -87,7 +87,6 @@ app.get('/api/job/:jobId', async (req, res) => {
         message: 'Không tìm thấy job'
       });
     }
-    console.log('job', job);
     
     res.json({
       success: true,
