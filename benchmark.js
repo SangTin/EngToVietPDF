@@ -3,7 +3,7 @@ const path = require('path');
 const axios = require('axios');
 const FormData = require('form-data');
 
-const SERVER_URL = 'http://192.168.211.128:3000';
+const SERVER_URL = 'http://localhost:3000';
 const SAMPLE_IMAGES_DIR = './benchmark/images';
 const RESULTS_DIR = './benchmark/results';
 const CONCURRENT_LIMIT = 10;

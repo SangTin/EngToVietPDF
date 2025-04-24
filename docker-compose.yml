@@ -56,6 +56,14 @@ services:
     environment:
       - REDIS_URL=redis://ocr-redis:6379
       - RABBITMQ_URL=amqp://guest:guest@ocr-rabbitmq
+      - TESSERACT_OPENCL=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [compute, utility]
 
   translate-worker:
     build: .
