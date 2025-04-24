@@ -103,10 +103,10 @@ app.get('/api/job/:jobId', async (req, res) => {
 });
 
 // API endpoint để tải xuống PDF
-app.get('/api/download/:jobId', (req, res) => {
+app.get('/api/download/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
-    const job = JobManager.getJobResult(jobId);
+    const job = await JobManager.getJobResult(jobId);
     
     if (!job || job.status !== 'completed' || !job.result || !job.result.pdf) {
       return res.status(404).json({
@@ -115,7 +115,7 @@ app.get('/api/download/:jobId', (req, res) => {
       });
     }
     
-    const pdfPath = job.result.pdf;
+    const pdfPath = path.resolve(job.result.pdf);
     
     if (!fs.existsSync(pdfPath)) {
       return res.status(404).json({
@@ -124,7 +124,16 @@ app.get('/api/download/:jobId', (req, res) => {
       });
     }
     
-    res.download(pdfPath);
+    res.download(pdfPath, (err) => {
+      if (err) {
+        console.error('Lỗi khi gửi file PDF:', err);
+        res.status(500).json({
+          success: false,
+          message: 'Đã xảy ra lỗi khi gửi file PDF',
+          error: err.message
+        });
+      }
+    });
   } catch (error) {
     console.error('Lỗi khi tải xuống PDF:', error);
     res.status(500).json({
