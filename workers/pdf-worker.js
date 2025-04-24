@@ -4,11 +4,6 @@ const cache = require('../utils/cache');
 const path = require('path');
 const crypto = require('crypto');
 const JobManager = require('../utils/job-manager');
-const { Semaphore } = require('async-mutex');
-const monitor = require('../utils/monitoring');
-
-const MAX_CONCURRENT_WORKERS = 3;
-const semaphore = new Semaphore(MAX_CONCURRENT_WORKERS);
 
 // Tạo key cache duy nhất cho văn bản
 function generateTextCacheKey(text) {
@@ -21,53 +16,45 @@ async function processPDFJob(data) {
     const { text, jobId } = data;
 
     try {
-        monitor.startMeasure('pdf_process', jobId);
         await JobManager.updateJobStatus(jobId, 'processing', 'pdf');
         console.log(`Đang tạo PDF cho job ${jobId}`);
 
-        return await semaphore.runExclusive(async () => {
-            // Tạo key cache dựa trên nội dung văn bản
-            const cacheKey = cache.generateCacheKey(text, cache.CACHE_TYPES.PDF);
+        // Tạo key cache dựa trên nội dung văn bản
+        const textCacheKey = generateTextCacheKey(text);
 
-            // Kiểm tra xem PDF đã được tạo từ văn bản này chưa
-            let pdfFile = await cache.get(cacheKey);
+        // Kiểm tra xem PDF đã được tạo từ văn bản này chưa
+        let pdfFile = await cache.get(textCacheKey);
 
-            if (!pdfFile) {
-                monitor.startMeasure('pdf_execution', jobId);
-                // Tạo tên file duy nhất dựa vào jobId
-                const outputFile = path.join('./output', `output_${jobId}.pdf`);
+        if (!pdfFile) {
+            // Tạo tên file duy nhất dựa vào jobId
+            const outputFile = path.join('./output', `output_${jobId}.pdf`);
 
-                // Tạo PDF mới
-                pdfFile = await createPDF(text, outputFile);
-                await monitor.endMeasure('pdf_execution', jobId);
-                await monitor.recordMetric('cache_miss', 1, jobId);
+            // Tạo PDF mới
+            pdfFile = await createPDF(text, outputFile);
 
-                // Lưu đường dẫn file PDF vào cache
-                await cache.set(cacheKey, pdfFile);
-            } else {
-                await monitor.recordMetric('cache_hit', 1, jobId);
-                console.log(`Sử dụng PDF từ cache cho job ${jobId}`);
-            }
+            // Lưu đường dẫn file PDF vào cache
+            await cache.set(textCacheKey, pdfFile);
+        } else {
+            console.log(`Sử dụng PDF từ cache cho job ${jobId}`);
+        }
 
-            // Lưu đường dẫn PDF cho job hiện tại
-            const jobKey = `job_${jobId}_pdf`;
-            await cache.set(jobKey, pdfFile);
+        // Lưu đường dẫn PDF cho job hiện tại
+        const jobKey = `job_${jobId}_pdf`;
+        await cache.set(jobKey, pdfFile);
 
-            // Đánh dấu job hoàn thành
-            await cache.set(`job_${jobId}_completed`, true);
-            await monitor.endMeasure('pdf_process', jobId);
+        // Đánh dấu job hoàn thành
+        await cache.set(`job_${jobId}_completed`, true);
 
-            console.log(`Hoàn thành tạo PDF cho job ${jobId}: ${pdfFile}`);
-            return pdfFile;
-        });
+        console.log(`Hoàn thành tạo PDF cho job ${jobId}: ${pdfFile}`);
+        return pdfFile;
     } catch (error) {
-        console.error('Lỗi trong quá trình xử lý job PDF:', error);
+        console.error('Lỗi trong quá trình tạo PDF:', error);
         throw error;
     }
 }
 
 async function startPDFWorker() {
-    await consumeQueue(QUEUES.PDF, processPDFJob, 5);
+    await consumeQueue(QUEUES.PDF, processPDFJob);
     console.log('PDF Worker đã bắt đầu');
 }
 
