@@ -8,7 +8,6 @@ const instance = {
         const jobId = uuidv4();
         const createdAt = Date.now();
 
-        // Lưu thông tin job - sử dụng await vì cache.set giờ là async
         await cache.set(`job_${jobId}`, {
             id: jobId,
             status: 'pending',
@@ -40,7 +39,6 @@ const instance = {
     // Cập nhật trạng thái job
     async updateJobStatus(jobId, status, currentStep = null, message = null) {
         const jobKey = `job_${jobId}`;
-        // Sử dụng await vì cache.get giờ là async
         const job = await cache.get(jobKey) || {};
         console.log('job', job);
 
@@ -58,7 +56,6 @@ const instance = {
             updatedJob.message = message;
         }
 
-        // Sử dụng await vì cache.set giờ là async
         await cache.set(jobKey, updatedJob);
 
         return updatedJob;
@@ -67,14 +64,12 @@ const instance = {
     // Lấy thông tin job
     async getJob(jobId) {
         const jobKey = `job_${jobId}`;
-        // Sử dụng await vì cache.get giờ là async
         const job = await cache.get(jobKey);
 
         if (!job) {
             return null;
         }
         
-        // Đảm bảo currentStep luôn có giá trị (null nếu không tồn tại)
         return {
             ...job,
             currentStep: job.currentStep || null
@@ -83,29 +78,26 @@ const instance = {
 
     // Lấy kết quả job
     async getJobResult(jobId) {
-        // Sử dụng await vì this.getJob giờ là async
         const job = await this.getJob(jobId);
 
         if (!job) {
             return null;
         }
 
-        // Lấy thông tin currentStep (nếu có)
         const currentStep = job.currentStep || null;
         console.log('currentStep', currentStep);
 
-        // Kiểm tra xem job đã hoàn thành chưa - sử dụng await vì cache.get giờ là async
         const completed = await cache.get(`job_${jobId}_completed`);
 
         if (!completed) {
             return {
                 ...job,
-                currentStep,  // Thêm currentStep vào kết quả
+                currentStep,
                 result: null
             };
         }
 
-        // Lấy các kết quả trung gian - sử dụng await vì cache.get giờ là async
+        // Lấy các kết quả trung gian
         const ocrResult = await cache.get(`job_${jobId}_ocr`);
         const translateResult = await cache.get(`job_${jobId}_translate`);
         const pdfResult = await cache.get(`job_${jobId}_pdf`);
@@ -113,7 +105,7 @@ const instance = {
         return {
             ...job,
             status: 'completed',
-            currentStep,  // Thêm currentStep vào kết quả hoàn thành
+            currentStep,
             result: {
                 ocr: ocrResult,
                 translate: translateResult,

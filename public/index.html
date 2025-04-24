@@ -158,14 +158,14 @@
         </div>
 
         <!-- Thêm phần hiển thị trạng thái cache -->
-        <div class="alert alert-info mt-4" id="cacheStatusAlert" style="display: none;">
+        <div class="alert alert-info mt-4" id="processingStatusAlert" style="display: none;">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <i class="bi bi-info-circle me-2"></i>
-                    <span id="cacheStatusText">Đang kiểm tra trạng thái cache...</span>
+                    <span id="processingStatusText">Đang xử lý...</span>
                 </div>
                 <button type="button" class="btn-close" aria-label="Close"
-                    onclick="document.getElementById('cacheStatusAlert').style.display = 'none';"></button>
+                    onclick="document.getElementById('processingStatusAlert').style.display = 'none';"></button>
             </div>
         </div>
 
@@ -276,8 +276,8 @@
             const translatedText = document.getElementById('translatedText');
             const downloadPdfButton = document.getElementById('downloadPdfButton');
             const errorMessage = document.getElementById('errorMessage');
-            const cacheStatusAlert = document.getElementById('cacheStatusAlert');
-            const cacheStatusText = document.getElementById('cacheStatusText');
+            const processingStatusAlert = document.getElementById('processingStatusAlert');
+            const processingStatusText = document.getElementById('processingStatusText');
             const newProcessBtn = document.getElementById('newProcessBtn');
 
             // Các phần tử hiển thị trạng thái job
@@ -343,7 +343,7 @@
                     hideError();
 
                     // Ẩn thông báo cache khi tải file mới
-                    cacheStatusAlert.style.display = 'none';
+                    processingStatusAlert.style.display = 'none';
                 };
                 reader.readAsDataURL(file);
             }
@@ -353,14 +353,14 @@
                 // Hiển thị phần tiến trình xử lý
                 progressSection.style.display = 'block';
                 resultSection.style.display = 'none';
-                cacheStatusAlert.style.display = 'none';
+                processingStatusAlert.style.display = 'none';
                 hideError();
 
                 // Reset trạng thái các bước xử lý
                 resetProgress();
 
                 // Bắt đầu đo thời gian xử lý
-                const startTime = performance.now();
+                startTime = performance.now();
 
                 // Tạo FormData để gửi file lên server
                 const formData = new FormData();
@@ -544,15 +544,9 @@
 
                 // Hiển thị thông báo xử lý từ cache (nếu có)
                 const processingTime = (performance.now() - startTime) / 1000;
-                if (job.fromCache) {
-                    cacheStatusText.textContent = `Kết quả được phục vụ từ cache, giúp tăng tốc xử lý! (${processingTime.toFixed(2)} giây)`;
-                    cacheStatusAlert.style.display = 'block';
-                    cacheStatusAlert.className = 'alert alert-success mt-4';
-                } else {
-                    cacheStatusText.textContent = `Xử lý hoàn tất trong ${processingTime.toFixed(2)} giây. Kết quả đã được lưu vào cache cho lần sau.`;
-                    cacheStatusAlert.style.display = 'block';
-                    cacheStatusAlert.className = 'alert alert-info mt-4';
-                }
+                processingStatusText.textContent = `Xử lý hoàn tất trong ${processingTime.toFixed(2)} giây.`;
+                processingStatusAlert.style.display = 'block';
+                processingStatusAlert.className = 'alert alert-info mt-4';
             }
 
             // Cập nhật trạng thái khi có lỗi
@@ -596,7 +590,7 @@
                 // Reset giao diện
                 progressSection.style.display = 'none';
                 resultSection.style.display = 'none';
-                cacheStatusAlert.style.display = 'none';
+                processingStatusAlert.style.display = 'none';
                 fileInput.value = '';
                 previewImage.style.display = 'none';
                 processButton.disabled = true;
