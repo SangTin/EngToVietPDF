@@ -3,3 +3,5 @@ data/
 cache/
 output/
 uploads/
+reports/
+benchmark/
