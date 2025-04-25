@@ -57,53 +57,130 @@
             visibility: visible;
             opacity: 1;
         }
+        /* Thêm style cho phần phiên làm việc */
+        .session-badge {
+            background: linear-gradient(to right, #4a90e2, #6a5acd);
+            transition: all 0.3s ease;
+        }
+        .session-badge:hover {
+            transform: scale(1.05);
+        }
+        .recent-job {
+            border-left: 3px solid #4a90e2;
+            transition: all 0.3s ease;
+        }
+        .recent-job:hover {
+            transform: translateX(5px);
+        }
+        .recent-job.completed {
+            border-left-color: #10b981;
+        }
+        .recent-job.error {
+            border-left-color: #ef4444;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
-        <div class="bg-white shadow-xl rounded-2xl overflow-hidden">
-            <div class="p-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
-                <h1 class="text-2xl font-bold flex items-center">
-                    <i class="fas fa-file-upload mr-3"></i>
-                    OCR & Dịch Tài Liệu
-                </h1>
-                <p class="text-sm text-blue-100 mt-2">
-                    Tải lên nhiều tệp để chuyển đổi, nhận dạng và dịch thuật
-                </p>
+    <div class="container mx-auto px-4 py-8">
+        <!-- Thêm header với thông tin phiên -->
+        <div class="bg-white shadow-lg rounded-xl mb-6 overflow-hidden">
+            <div class="p-4 flex justify-between items-center">
+                <div class="flex items-center">
+                    <i class="fas fa-clock text-blue-500 mr-3"></i>
+                    <div>
+                        <h3 class="font-bold text-gray-700">Phiên làm việc</h3>
+                        <p class="text-sm text-gray-500" id="sessionInfo">Đang tải thông tin phiên...</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span id="sessionBadge" class="session-badge text-white text-xs px-3 py-1 rounded-full">
+                        <i class="fas fa-fingerprint mr-1"></i>
+                        <span id="sessionId">...</span>
+                    </span>
+                    <a href="/history.html" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm transition">
+                        <i class="fas fa-history mr-1"></i>
+                        Lịch sử
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Main upload area - 2/3 width on large screens -->
+            <div class="lg:col-span-2">
+                <div class="bg-white shadow-xl rounded-2xl overflow-hidden">
+                    <div class="p-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+                        <h1 class="text-2xl font-bold flex items-center">
+                            <i class="fas fa-file-upload mr-3"></i>
+                            OCR & Dịch Tài Liệu
+                        </h1>
+                        <p class="text-sm text-blue-100 mt-2">
+                            Tải lên nhiều tệp để chuyển đổi, nhận dạng và dịch thuật
+                        </p>
+                    </div>
+
+                    <div class="p-6">
+                        <div id="uploadArea" class="drop-zone p-8 text-center cursor-pointer">
+                            <input type="file" id="fileInput" multiple accept="image/*" style="display: none;" />
+                            <div class="text-center">
+                                <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4 block"></i>
+                                <p class="text-gray-600 font-semibold">
+                                    Kéo và thả tệp tại đây hoặc 
+                                    <span class="text-blue-600 hover:underline" onclick="">
+                                        Chọn tệp
+                                    </span>
+                                </p>
+                                <p class="text-sm text-gray-500 mt-2">
+                                    Hỗ trợ ảnh (jpg, png, gif) (tối đa 10MB)
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Combined file and processing list -->
+                        <div id="fileProcessingList" class="mt-6 space-y-3">
+                            <!-- Files and processing items will be added here dynamically -->
+                        </div>
+
+                        <div id="uploadActions" class="mt-6 flex justify-between items-center">
+                            <div class="text-sm text-gray-600">
+                                <span id="totalFiles">0 tệp</span>
+                                <span class="mx-2">•</span>
+                                <span id="totalSize">0 KB</span>
+                            </div>
+                            <button id="uploadButton" class="bg-gradient-to-r from-green-500 to-blue-500 text-white px-6 py-2 rounded-full hover:opacity-90 transition disabled:opacity-50" disabled>
+                                <i class="fas fa-paper-plane mr-2"></i>
+                                Chuyển đổi
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div class="p-6">
-                <div id="uploadArea" class="drop-zone p-8 text-center cursor-pointer">
-                    <input type="file" id="fileInput" multiple accept="image/*" style="display: none;" />
-                    <div class="text-center">
-                        <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4 block"></i>
-                        <p class="text-gray-600 font-semibold">
-                            Kéo và thả tệp tại đây hoặc 
-                            <span class="text-blue-600 hover:underline" onclick="">
-                                Chọn tệp
-                            </span>
-                        </p>
-                        <p class="text-sm text-gray-500 mt-2">
-                            Hỗ trợ ảnh (jpg, png, gif) (tối đa 10MB)
-                        </p>
+            <!-- Recent jobs sidebar - 1/3 width on large screens -->
+            <div class="lg:col-span-1">
+                <div class="bg-white shadow-lg rounded-xl overflow-hidden">
+                    <div class="p-4 bg-gradient-to-r from-blue-500 to-blue-400 text-white flex justify-between items-center">
+                        <h2 class="font-bold">File gần đây</h2>
+                        <button id="refreshRecentBtn" class="bg-white bg-opacity-20 rounded-full p-2 hover:bg-opacity-30 transition">
+                            <i class="fas fa-sync-alt text-white text-sm"></i>
+                        </button>
                     </div>
-                </div>
-
-                <!-- Combined file and processing list -->
-                <div id="fileProcessingList" class="mt-6 space-y-3">
-                    <!-- Files and processing items will be added here dynamically -->
-                </div>
-
-                <div id="uploadActions" class="mt-6 flex justify-between items-center">
-                    <div class="text-sm text-gray-600">
-                        <span id="totalFiles">0 tệp</span>
-                        <span class="mx-2">•</span>
-                        <span id="totalSize">0 KB</span>
+                    <div class="p-4">
+                        <div id="recentJobsList" class="space-y-3 max-h-96 overflow-y-auto overflow-x-hidden">
+                            <div class="animate-pulse flex space-x-4">
+                                <div class="flex-1 space-y-2 py-1">
+                                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                                    <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                                </div>
+                            </div>
+                            <div class="animate-pulse flex space-x-4">
+                                <div class="flex-1 space-y-2 py-1">
+                                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                                    <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <button id="uploadButton" class="bg-gradient-to-r from-green-500 to-blue-500 text-white px-6 py-2 rounded-full hover:opacity-90 transition disabled:opacity-50" disabled>
-                        <i class="fas fa-paper-plane mr-2"></i>
-                        Chuyển đổi
-                    </button>
                 </div>
             </div>
         </div>
@@ -117,6 +194,197 @@
         const totalSize = document.getElementById('totalSize');
         const uploadButton = document.getElementById('uploadButton');
         const currentFiles = [];
+        
+        // Elements for session management
+        const sessionInfo = document.getElementById('sessionInfo');
+        const sessionId = document.getElementById('sessionId');
+        const recentJobsList = document.getElementById('recentJobsList');
+        const refreshRecentBtn = document.getElementById('refreshRecentBtn');
+
+        // Initialize session when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load session info
+            loadSessionInfo();
+            
+            // Load recent jobs
+            loadRecentJobs();
+            
+            // Add refresh event
+            refreshRecentBtn.addEventListener('click', loadRecentJobs);
+        });
+        
+        // Load session information
+        async function loadSessionInfo() {
+            try {
+                // Get session info from server
+                const response = await fetch('/api/user/settings', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Không thể tải thông tin phiên');
+                }
+                
+                const data = await response.json();
+                
+                // Get session ID from cookie
+                const sessionIdValue = getCookie('sessionId');
+                
+                if (sessionIdValue) {
+                    // Display truncated session ID
+                    const shortSessionId = sessionIdValue.substring(0, 8) + '...';
+                    sessionId.textContent = shortSessionId;
+                    
+                    // Update session info text
+                    const date = new Date();
+                    sessionInfo.innerHTML = `Phiên hoạt động từ ${date.getHours()}:${(date.getMinutes()<10?'0':'') + date.getMinutes()}`;
+                } else {
+                    sessionInfo.textContent = 'Phiên mới';
+                    sessionId.textContent = 'Mới';
+                }
+            } catch (error) {
+                console.error('Lỗi tải thông tin phiên:', error);
+                sessionInfo.textContent = 'Không thể tải thông tin phiên';
+            }
+        }
+        
+        // Load recent jobs
+        async function loadRecentJobs() {
+            try {
+                // Show loading state
+                recentJobsList.innerHTML = `
+                    <div class="animate-pulse space-y-3">
+                        <div class="flex space-x-4">
+                            <div class="flex-1 space-y-2 py-1">
+                                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                                <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                            </div>
+                        </div>
+                        <div class="flex space-x-4">
+                            <div class="flex-1 space-y-2 py-1">
+                                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                                <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Get recent jobs from server
+                const response = await fetch('/api/user/history', {
+                    method: 'GET',
+                    credentials: 'include' // Important to send cookies
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Không thể tải lịch sử');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.message || 'Không thể tải lịch sử');
+                }
+                
+                // Process jobs data
+                if (!data.history || data.history.length === 0) {
+                    recentJobsList.innerHTML = `
+                        <div class="text-center py-6 text-gray-500">
+                            <i class="fas fa-inbox text-3xl mb-2"></i>
+                            <p>Chưa có file nào được xử lý</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Sort by most recent first
+                const sortedJobs = data.history.sort((a, b) => b.createdAt - a.createdAt);
+                
+                // Limit to 5 most recent
+                const recentJobs = sortedJobs.slice(0, 5);
+                
+                // Create HTML
+                let jobsHTML = '';
+                
+                recentJobs.forEach(job => {
+                    const jobInfo = job.info || {};
+                    const status = jobInfo.status || 'pending';
+                    const jobName = job.name || `File ${job.jobId.substring(0, 8)}`;
+                    
+                    let statusBadge = '';
+                    let statusClass = '';
+                    
+                    switch (status) {
+                        case 'completed':
+                            statusBadge = '<span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded">Hoàn thành</span>';
+                            statusClass = 'completed';
+                            break;
+                        case 'processing':
+                            statusBadge = '<span class="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded">Đang xử lý</span>';
+                            statusClass = 'processing';
+                            break;
+                        case 'error':
+                            statusBadge = '<span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded">Lỗi</span>';
+                            statusClass = 'error';
+                            break;
+                        default:
+                            statusBadge = '<span class="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">Chờ xử lý</span>';
+                    }
+                    
+                    jobsHTML += `
+                        <div class="recent-job ${statusClass} bg-white p-3 rounded-lg shadow-sm">
+                            <div class="flex justify-between items-center">
+                                <div class="truncate max-w-xs">
+                                    <p class="font-medium text-gray-700 truncate">${jobName}</p>
+                                    <p class="text-xs text-gray-500">${formatTimestamp(job.createdAt)}</p>
+                                </div>
+                                ${statusBadge}
+                            </div>
+                            ${status === 'completed' ? `
+                                <div class="mt-2">
+                                    <a href="/api/download/${job.jobId}" class="text-blue-500 hover:text-blue-700 text-sm flex items-center">
+                                        <i class="fas fa-download mr-1"></i> Tải PDF
+                                    </a>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+                
+                // Add view all button
+                jobsHTML += `
+                    <div class="text-center mt-4">
+                        <a href="/history.html" class="text-blue-500 hover:text-blue-700 text-sm">
+                            Xem tất cả <i class="fas fa-arrow-right ml-1"></i>
+                        </a>
+                    </div>
+                `;
+                
+                recentJobsList.innerHTML = jobsHTML;
+            } catch (error) {
+                console.error('Lỗi tải lịch sử:', error);
+                recentJobsList.innerHTML = `
+                    <div class="text-center py-4 text-red-500">
+                        <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                        <p>Không thể tải lịch sử: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Helper function to format timestamp
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            return `${date.getDate()}/${date.getMonth() + 1} ${date.getHours()}:${(date.getMinutes()<10?'0':'') + date.getMinutes()}`;
+        }
+        
+        // Helper function to get cookie value
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
 
         // Prevent default drag behaviors
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -364,7 +632,8 @@
             try {
                 const response = await fetch('/api/process-images', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    credentials: 'include' // Thêm credentials để gửi cookie
                 });
 
                 const data = await response.json();
@@ -390,6 +659,11 @@
                 setTimeout(() => {
                     uploadButton.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Chuyển đổi';
                     updateUploadButtonState();
+                }, 3000);
+                
+                // Refresh recent jobs after upload
+                setTimeout(() => {
+                    loadRecentJobs();
                 }, 3000);
 
             } catch (error) {
@@ -445,7 +719,10 @@
             
             try {
                 while (true) {
-                    const response = await fetch(`/api/job/${jobId}`);
+                    const response = await fetch(`/api/job/${jobId}`, {
+                        credentials: 'include' // Thêm credentials để gửi cookie
+                    });
+                    
                     const data = await response.json();
                     
                     if (!data.success) {
@@ -482,6 +759,9 @@
                         
                         // Update upload button state - might be other files waiting
                         updateUploadButtonState();
+                        
+                        // Refresh recent jobs
+                        loadRecentJobs();
                         break;
                     }
                     

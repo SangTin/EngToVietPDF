@@ -108,6 +108,61 @@ async function remove(key) {
   }
 }
 
+async function addToSet(key, value) {
+  try {
+    await redisClient.sAdd(getFullKey(key), value);
+    return true;
+  } catch (error) {
+    console.error(`Lỗi khi thêm vào set ${key}:`, error);
+    return false;
+  }
+}
+
+// Lấy tất cả phần tử trong Set
+async function getSetMembers(key) {
+  try {
+    return await redisClient.sMembers(getFullKey(key));
+  } catch (error) {
+    console.error(`Lỗi khi lấy set ${key}:`, error);
+    return [];
+  }
+}
+
+// Lưu hash map
+async function setHash(key, fields) {
+  try {
+    await redisClient.hSet(getFullKey(key), fields);
+    return true;
+  } catch (error) {
+    console.error(`Lỗi khi lưu hash ${key}:`, error);
+    return false;
+  }
+}
+
+// Lấy toàn bộ hash map
+async function getHash(key) {
+  try {
+    return await redisClient.hGetAll(getFullKey(key));
+  } catch (error) {
+    console.error(`Lỗi khi lấy hash ${key}:`, error);
+    return null;
+  }
+}
+
+async function expire(key, priority) {
+  try {
+    const ttl = CACHE_PRIORITY[priority];
+    if (ttl) {
+      await redisClient.expire(getFullKey(key), ttl);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error(`Lỗi khi đặt thời gian sống cho ${key}:`, error);
+    return false;
+  }
+}
+
 // Xóa tất cả cache
 async function clear() {
   try {
@@ -175,6 +230,7 @@ module.exports = {
   getAllKeys,
   closeConnection,
   clearByPattern,
+  redisClient,
   CACHE_PRIORITY,
   CACHE_TYPES
 };
