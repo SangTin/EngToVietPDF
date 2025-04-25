@@ -51,11 +51,12 @@ async function processPDFJob(data) {
 
             // Lưu đường dẫn PDF cho job hiện tại
             const jobKey = `job_${jobId}_pdf`;
-            await cache.setWithPriority(jobKey, pdfFile);
+            await cache.setWithPriority(jobKey, pdfFile, 'HIGH');
 
             // Đánh dấu job hoàn thành
-            await cache.setWithPriority(`job_${jobId}_completed`, true);
             await monitor.endMeasure('pdf_process', jobId);
+            await JobManager.updateJobStatus(jobId, 'completed', 'pdf');
+            await JobManager.cleanupCompletedJob(jobId);
 
             console.log(`Hoàn thành tạo PDF cho job ${jobId}: ${pdfFile}`);
             return pdfFile;

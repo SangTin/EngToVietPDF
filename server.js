@@ -103,7 +103,7 @@ app.post('/api/process-images', (req, res) => {
   });
 });
 
-// API endpoint để kiểm tra trạng thái job (giữ nguyên như cũ)
+// API endpoint để kiểm tra trạng thái job
 app.get('/api/job/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
@@ -130,7 +130,7 @@ app.get('/api/job/:jobId', async (req, res) => {
   }
 });
 
-// API endpoint để tải xuống PDF (giữ nguyên như cũ)
+// API endpoint để tải xuống PDF
 app.get('/api/download/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;

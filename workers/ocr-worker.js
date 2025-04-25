@@ -27,8 +27,7 @@ async function processOCRJob(data) {
             const preprocessedKey = `job_${jobId}_preprocessed`;
             const preprocessedPath = await cache.get(preprocessedKey) || imagePath;
             
-            // Tạo key cache dựa trên file gốc
-            const cacheKey = cache.generateCacheKey(imagePath, cache.CACHE_TYPES.OCR);
+            const cacheKey = cache.generateCacheKey(preprocessedPath, cache.CACHE_TYPES.OCR);
             
             // Kiểm tra cache
             let extractedText = await cache.get(cacheKey);
@@ -53,7 +52,7 @@ async function processOCRJob(data) {
 
             // Lưu kết quả OCR cho job hiện tại
             const jobKey = `job_${jobId}_ocr`;
-            await cache.setWithPriority(jobKey, extractedText);
+            await cache.setWithPriority(jobKey, extractedText, 'HIGH');
 
             // Chuyển tiếp dữ liệu đến hàng đợi dịch thuật
             console.log(`Đang gửi job ${jobId} đến translate_queue`);

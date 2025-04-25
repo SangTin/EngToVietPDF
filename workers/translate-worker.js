@@ -41,8 +41,9 @@ async function processTranslationJob(data) {
             await cache.setWithPriority(jobKey, translatedText);
             await monitor.endMeasure('translate_process', jobId);
 
+            // Lưu kết quả dịch cho toàn bộ quy trình
             try {
-                const fileHash = cache.get(`job_${jobId}_filehash`);
+                const fileHash = await cache.get(`job_${jobId}_filehash`);
                 const fileKey = cache.generateCacheKey(fileHash, cache.CACHE_TYPES.TRANSLATE);
                 await cache.setWithPriority(fileKey, {
                     ocrText: text,

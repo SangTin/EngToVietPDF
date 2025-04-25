@@ -1,31 +1,31 @@
 const sharp = require('sharp');
+sharp.simd(true);
+sharp.concurrency(4);
+
 const path = require('path');
 const fs = require('fs').promises;
 
-async function preprocessTransparentImage(inputPath) {
+async function preprocessTransparentImage(inputPath, transformer) {
   try {
     const dirname = path.dirname(inputPath);
     const filename = path.basename(inputPath);
     const preprocessedPath = path.join(dirname, `preprocessed_${filename}`);
     
     // Đọc thông tin ảnh
-    const metadata = await sharp(inputPath).metadata();
+    const metadata = await transformer.metadata();
     
     // Kiểm tra xem ảnh có kênh alpha không (transparent)
     const hasAlpha = metadata.channels === 4 || metadata.hasAlpha;
     
-    // Pipeline xử lý ảnh
-    let pipeline = sharp(inputPath);
-    
     // Đối với ảnh trong suốt, thêm nền trắng
-    pipeline = pipeline.flatten({ background: { r: 255, g: 255, b: 255 } });
+    transformer = transformer.flatten({ background: { r: 255, g: 255, b: 255 } });
     
     // Tính toán kích thước mới
     const targetWidth = Math.min(metadata.width * 2.5, 3000);
     const targetHeight = Math.round(targetWidth * metadata.height / metadata.width);
     
     // Tiếp tục quy trình xử lý
-    await pipeline
+    await transformer
       .grayscale()
       .resize(targetWidth, targetHeight)
       // Nhẹ nhàng hơn với việc làm sắc nét và tăng độ tương phản
@@ -49,17 +49,17 @@ async function preprocessTransparentImage(inputPath) {
 }
 
 // Xử lý đặc biệt cho ảnh có chữ màu trắng trên nền trong suốt
-async function preprocessWhiteTextImage(inputPath) {
+async function preprocessWhiteTextImage(inputPath, transformer) {
   try {
     const dirname = path.dirname(inputPath);
     const filename = path.basename(inputPath);
     const preprocessedPath = path.join(dirname, `preprocessed_${filename}`);
     
     // Đọc thông tin ảnh
-    const metadata = await sharp(inputPath).metadata();
+    const metadata = await transformer.metadata();
     
     // Kiểm tra màu chủ đạo của ảnh
-    const stats = await sharp(inputPath).stats();
+    const stats = await transformer.stats();
     
     // Kiểm tra xem có phải ảnh sáng không (có thể là chữ trắng)
     const isLightImage = stats.channels.every(channel => channel.mean > 200);
@@ -69,7 +69,7 @@ async function preprocessWhiteTextImage(inputPath) {
     const targetHeight = Math.round(targetWidth * metadata.height / metadata.width);
     
     // Pipeline xử lý ảnh
-    let pipeline = sharp(inputPath);
+    let pipeline = transformer;
     
     if (isLightImage) {
       // Đối với chữ trắng, thêm nền đen để tạo độ tương phản
@@ -107,12 +107,22 @@ async function preprocessWhiteTextImage(inputPath) {
 // Cải tiến hàm xử lý ảnh thông minh
 async function smartImagePreprocessing(inputPath) {
   try {
+    const transformer = sharp(inputPath);
+
     // Đọc thông tin ảnh
-    const metadata = await sharp(inputPath).metadata();
+    const metadata = await transformer.metadata();
+
+    if (metadata.width > 3000 || metadata.height > 3000) {
+      transformer.resize(Math.min(metadata.width, 3000), null, { 
+        fit: 'inside', 
+        withoutEnlargement: false 
+      });
+    }
+    
     const hasAlpha = metadata.channels === 4 || metadata.hasAlpha;
     
     // Phân tích ảnh để xác định loại ảnh
-    const stats = await sharp(inputPath).stats();
+    const stats = await transformer.stats();
     
     // Kiểm tra độ sáng trung bình
     const avgBrightness = stats.channels.reduce((sum, channel) => sum + channel.mean, 0) / stats.channels.length;
@@ -128,19 +138,19 @@ async function smartImagePreprocessing(inputPath) {
     if (hasAlpha && avgBrightness > 200) {
       // Ảnh có kênh alpha và độ sáng cao - có thể là chữ trắng trên nền trong suốt
       console.log(`Xử lý ảnh chữ trắng trên nền trong suốt: ${inputPath}`);
-      return await preprocessWhiteTextImage(inputPath);
+      return await preprocessWhiteTextImage(inputPath, transformer);
     } else if (hasAlpha) {
       // Ảnh trong suốt thông thường
       console.log(`Xử lý ảnh không có nền: ${inputPath}`);
-      return await preprocessTransparentImage(inputPath);
+      return await preprocessTransparentImage(inputPath, transformer);
     } else if (avgContrast < 0.2) {
       // Ảnh có độ tương phản thấp
       console.log(`Xử lý ảnh có độ tương phản thấp: ${inputPath}`);
-      return await preprocessLowContrastImage(inputPath);
+      return await preprocessLowContrastImage(inputPath, transformer);
     } else {
       // Ảnh thông thường
       console.log(`Xử lý ảnh thông thường: ${inputPath}`);
-      return await preprocessImage(inputPath);
+      return await preprocessImage(inputPath, transformer);
     }
   } catch (error) {
     console.error('Lỗi khi phân tích và tiền xử lý ảnh:', error);
@@ -149,13 +159,13 @@ async function smartImagePreprocessing(inputPath) {
 }
 
 // Xử lý ảnh có độ tương phản thấp
-async function preprocessLowContrastImage(inputPath) {
+async function preprocessLowContrastImage(inputPath, transformer) {
   try {
     const dirname = path.dirname(inputPath);
     const filename = path.basename(inputPath);
     const preprocessedPath = path.join(dirname, `preprocessed_${filename}`);
     
-    await sharp(inputPath)
+    await transformer
       .grayscale()
       // Tăng độ phân giải
       .resize({
@@ -183,7 +193,7 @@ async function preprocessLowContrastImage(inputPath) {
   }
 }
 
-async function preprocessImage(inputPath) {
+async function preprocessImage(inputPath, transformer) {
   try {
     const dirname = path.dirname(inputPath);
     const filename = path.basename(inputPath);
@@ -192,7 +202,7 @@ async function preprocessImage(inputPath) {
     console.log(`Bắt đầu tiền xử lý ảnh: ${inputPath}`);
     
     // Đọc thông tin ảnh
-    const metadata = await sharp(inputPath).metadata();
+    const metadata = await transformer.metadata();
     console.log(`Kích thước ảnh gốc: ${metadata.width}x${metadata.height}`);
     
     // Tính toán kích thước mới (tăng độ phân giải ~3x)
@@ -202,7 +212,7 @@ async function preprocessImage(inputPath) {
     console.log(`Điều chỉnh kích thước ảnh thành: ${targetWidth}x${targetHeight}`);
     
     // Áp dụng các bước tiền xử lý
-    await sharp(inputPath)
+    await transformer
       // Chuyển sang grayscale
       .grayscale()
       
@@ -245,7 +255,7 @@ async function preprocessImage(inputPath) {
 async function processLargeImage(inputPath, threshold = 1500) {
   try {
     // Lấy thông tin ảnh
-    const metadata = await sharp(inputPath).metadata();
+    const metadata = await transformer.metadata();
     
     // Nếu ảnh không quá lớn, xử lý bình thường
     if (metadata.width < threshold && metadata.height < threshold) {
@@ -258,7 +268,7 @@ async function processLargeImage(inputPath, threshold = 1500) {
     const tempPath = path.join(path.dirname(inputPath), `temp_${path.basename(inputPath)}`);
     
     // Giảm kích thước về mức hợp lý trước
-    await sharp(inputPath)
+    await transformer
       .resize(Math.min(metadata.width, 3000), null, {
         fit: 'inside',
         withoutEnlargement: false

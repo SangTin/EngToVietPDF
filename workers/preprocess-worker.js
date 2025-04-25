@@ -35,6 +35,9 @@ async function processPreprocessJob(data) {
         console.log(`Bắt đầu tiền xử lý ảnh cho job ${jobId}: ${imagePath}`);
 
         return await semaphore.runExclusive(async () => {
+            const fileKey = `job_${jobId}_original`;
+            await cache.setWithPriority(fileKey, imagePath, 'HIGH');
+
             // Tạo key cache dựa trên hash của file gốc
             const fileHash = await generateFileHash(imagePath);
             const cacheKey = cache.generateCacheKey(fileHash, cache.CACHE_TYPES.PREPROCESS);
@@ -57,8 +60,8 @@ async function processPreprocessJob(data) {
                     console.log(`Tìm thấy kết quả đầy đủ trong cache cho job ${jobId}, bỏ qua OCR và dịch`);
                     
                     // Lưu kết quả trực tiếp
-                    await cache.setWithPriority(`job_${jobId}_ocr`, cachedTranslation.ocrText);
-                    await cache.setWithPriority(`job_${jobId}_translate`, cachedTranslation.translatedText);
+                    await cache.setWithPriority(`job_${jobId}_ocr`, cachedTranslation.ocrText, 'HIGH');
+                    await cache.setWithPriority(`job_${jobId}_translate`, cachedTranslation.translatedText, 'HIGH');
                     
                     // Cập nhật trạng thái job
                     await JobManager.updateJobStatus(jobId, 'processing', 'pdf');
@@ -80,7 +83,7 @@ async function processPreprocessJob(data) {
 
             // Lưu filehash và đường dẫn ảnh đã xử lý cho job hiện tại
             await cache.setWithPriority(`job_${jobId}_filehash`, fileHash, 'HIGH');
-            await cache.setWithPriority(`job_${jobId}_preprocessed`, processedPath);
+            await cache.setWithPriority(`job_${jobId}_preprocessed`, processedPath, 'HIGH');
 
             // Đo thời gian và kết thúc
             const totalTime = await monitor.endMeasure('preprocess', jobId);
