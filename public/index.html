@@ -584,6 +584,57 @@
         // Upload functionality
         uploadButton.addEventListener('click', uploadFiles);
 
+        function showInvalidFilesModal(invalidFiles) {
+            // Tạo modal hiển thị file không hợp lệ
+            const errorModal = document.createElement('div');
+            errorModal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+            
+            errorModal.innerHTML = `
+                <div class="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
+                    <div class="flex items-center mb-4 text-red-600">
+                        <i class="fas fa-exclamation-triangle mr-3 text-2xl"></i>
+                        <h2 class="text-xl font-bold">File không hợp lệ</h2>
+                    </div>
+                    <div class="max-h-64 overflow-y-auto">
+                        <p class="text-gray-600 mb-4">
+                            ${invalidFiles.length > 1 
+                              ? `${invalidFiles.length} file sau không được xử lý do không phải là định dạng hình ảnh hợp lệ:` 
+                              : 'File sau không được xử lý do không phải là định dạng hình ảnh hợp lệ:'}
+                        </p>
+                        <ul class="space-y-2">
+                            ${invalidFiles.map(file => `
+                                <li class="flex justify-between items-center bg-red-50 p-3 rounded-lg">
+                                    <span class="font-medium truncate mr-3">${file.filename}</span>
+                                    <span class="text-red-600 text-sm whitespace-nowrap">${file.reason}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                    <div class="mt-6 flex justify-end">
+                        <button class="bg-gradient-to-r from-red-500 to-pink-500 text-white px-4 py-2 rounded-lg hover:opacity-90 transition">
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Thêm vào body
+            document.body.appendChild(errorModal);
+            
+            // Xử lý đóng modal
+            const closeButton = errorModal.querySelector('button');
+            closeButton.addEventListener('click', () => {
+                document.body.removeChild(errorModal);
+            });
+            
+            // Đóng khi click bên ngoài
+            errorModal.addEventListener('click', (e) => {
+                if (e.target === errorModal) {
+                    document.body.removeChild(errorModal);
+                }
+            });
+        }
+
         async function uploadFiles() {
             // Get unprocessed files only
             const filesToProcess= [];
@@ -638,13 +689,44 @@
 
                 const data = await response.json();
 
+                if (data.invalidFiles && data.invalidFiles.length > 0) {
+                    showInvalidFilesModal(data.invalidFiles);
+                    
+                    // Đánh dấu các file không hợp lệ trong giao diện
+                    fileItemsToProcess.forEach(item => {
+                        const filename = item.dataset.filename;
+                        if (data.invalidFiles.some(file => file.filename === filename)) {
+                            item.dataset.processed = 'failed';
+                            item.dataset.processing = 'false';
+                            const statusArea = item.querySelector('.status-area');
+                            if (statusArea) {
+                                statusArea.classList.remove('hidden');
+                                const statusEl = statusArea.querySelector('.job-status');
+                                const progressBar = statusArea.querySelector('.progress-bar');
+                                if (statusEl) {
+                                    statusEl.textContent = 'File không hợp lệ';
+                                    statusEl.classList.add('text-red-600');
+                                }
+                                if (progressBar) {
+                                    progressBar.classList.remove('bg-blue-600');
+                                    progressBar.classList.add('bg-red-600');
+                                    progressBar.style.width = '100%';
+                                }
+                            }
+                        }
+                    });
+                }
+
                 if (!data.success) {
                     throw new Error(data.message || 'Lỗi tải lên');
                 }
 
                 // Monitor job status for each file
                 data.jobs.forEach((jobInfo, index) => {
-                    const fileItem = fileItemsToProcess[index];
+                    const fileItem = fileItemsToProcess.find(item => 
+                        !data.invalidFiles || 
+                        !data.invalidFiles.some(file => file.filename === item.dataset.filename)
+                    );
                     
                     if (fileItem) {
                         fileItem.dataset.jobId = jobInfo.jobId;
@@ -672,10 +754,12 @@
                 
                 // Reset UI and mark files as not processed
                 fileItemsToProcess.forEach(item => {
-                    item.dataset.processing = 'false';
-                    const statusArea = item.querySelector('.status-area');
-                    if (statusArea) {
-                        statusArea.classList.add('hidden');
+                    if (item.dataset.processed !== 'failed') {
+                        item.dataset.processing = 'false';
+                        const statusArea = item.querySelector('.status-area');
+                        if (statusArea) {
+                            statusArea.classList.add('hidden');
+                        }
                     }
                 });
                 

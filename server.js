@@ -3,7 +3,8 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs').promises;
+const fsSync = require('fs');
 const JobManager = require('./utils/job-manager');
 const cacheApiRoutes = require('./utils/cache-api');
 const auth = require('./utils/auth');
@@ -54,8 +55,8 @@ app.use(checkSession);
 
 // Đảm bảo thư mục uploads tồn tại
 const UPLOAD_DIR = './uploads';
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+if (!fsSync.existsSync(UPLOAD_DIR)) {
+  fsSync.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
 // Cấu hình multer để lưu trữ file tải lên
@@ -81,6 +82,70 @@ const upload = multer({
     }
   }
 }).array('images', 10); // Cho phép tải lên tối đa 10 ảnh
+
+async function validateImageFile(filePath) {
+  try {
+    // Đọc 8 byte đầu tiên của file
+    const buffer = Buffer.alloc(8);
+    const fileHandle = await fs.open(filePath, 'r');
+    await fileHandle.read(buffer, 0, 8, 0);
+    await fileHandle.close();
+    
+    // Chữ ký của các định dạng file phổ biến
+    const signatures = {
+      // PNG: 89 50 4E 47 0D 0A 1A 0A
+      png: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+      // JPEG: FF D8 FF
+      jpeg: [0xFF, 0xD8, 0xFF],
+      // GIF: 47 49 46 38
+      gif: [0x47, 0x49, 0x46, 0x38],
+      // BMP: 42 4D
+      bmp: [0x42, 0x4D],
+      // WEBP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50
+      webp: [0x52, 0x49, 0x46, 0x46]
+    };
+    
+    // Kiểm tra PNG
+    if (signatures.png.every((byte, i) => buffer[i] === byte)) {
+      return { valid: true, type: 'image/png' };
+    }
+    
+    // Kiểm tra JPEG
+    if (signatures.jpeg.every((byte, i) => buffer[i] === byte)) {
+      return { valid: true, type: 'image/jpeg' };
+    }
+    
+    // Kiểm tra GIF
+    if (signatures.gif.every((byte, i) => buffer[i] === byte)) {
+      return { valid: true, type: 'image/gif' };
+    }
+    
+    // Kiểm tra BMP
+    if (signatures.bmp.every((byte, i) => buffer[i] === byte)) {
+      return { valid: true, type: 'image/bmp' };
+    }
+    
+    // Kiểm tra WEBP
+    if (signatures.webp.every((byte, i) => i < 4 ? buffer[i] === byte : true)) {
+      // Đọc thêm để kiểm tra đầy đủ signature WEBP
+      const webpBuffer = Buffer.alloc(12);
+      const webpHandle = await fs.open(filePath, 'r');
+      await webpHandle.read(webpBuffer, 0, 12, 0);
+      await webpHandle.close();
+      
+      if (webpBuffer[8] === 0x57 && webpBuffer[9] === 0x45 && 
+          webpBuffer[10] === 0x42 && webpBuffer[11] === 0x50) {
+        return { valid: true, type: 'image/webp' };
+      }
+    }
+    
+    // Không khớp với bất kỳ định dạng hình ảnh nào
+    return { valid: false, type: 'unknown' };
+  } catch (error) {
+    console.error('Lỗi khi kiểm tra file:', error);
+    return { valid: false, type: 'error', message: error.message };
+  }
+}
 
 // API endpoint để tải lên ảnh và xử lý
 app.post('/api/process-images', (req, res) => {
@@ -108,39 +173,73 @@ app.post('/api/process-images', (req, res) => {
     }
 
     try {
-      // Xử lý từng file
-      const jobResults = [];
-  
+      // Mảng chứa các file hợp lệ
+      const validFiles = [];
+      const invalidFiles = [];
+      
+      // Kiểm tra từng file
       for (const file of req.files) {
-        // Tạo job mới
-        const jobId = await JobManager.createJob();
+        const validation = await validateImageFile(file.path);
         
-        // Thêm job vào phiên của người dùng - đợi hoàn thành
-        auth.addJobToSession(req.sessionId, jobId)
-          .then(added => {
-            if (!added) {
-              console.warn(`Không thể thêm job ${jobId} vào phiên ${req.sessionId}`);
-            }
-          })
-          .catch(error => {
-            console.error(`Lỗi khi thêm job ${jobId} vào phiên:`, error);
+        if (validation.valid) {
+          validFiles.push({
+            ...file,
+            validatedType: validation.type
           });
-        
-        // Bắt đầu xử lý ảnh
-        await JobManager.startImageProcessing(file.path, jobId)
-          .catch(error => console.error(`Lỗi xử lý job ${jobId}:`, error));
-        
-        jobResults.push({
-          filename: file.originalname,
-          jobId
+        } else {
+          // Xóa file không hợp lệ
+          await fs.unlink(file.path).catch(e => console.error(`Lỗi xóa file: ${e}`));
+          
+          invalidFiles.push({
+            filename: file.originalname,
+            reason: 'Định dạng file không hợp lệ'
+          });
+        }
+      }
+      
+      // Nếu không có file hợp lệ nào
+      if (validFiles.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Không có file hợp lệ nào được tải lên',
+          invalidFiles
         });
       }
+      
+      // Xử lý từng file
+      const jobResults = await Promise.all(
+        validFiles.map(async (file) => {
+          // Tạo job mới
+          const jobId = await JobManager.createJob();
+        
+          // Thêm job vào phiên của người dùng
+          auth.addJobToSession(req.sessionId, jobId)
+            .then(added => {
+              if (!added) {
+                console.warn(`Không thể thêm job ${jobId} vào phiên ${req.sessionId}`);
+              }
+            })
+            .catch(error => {
+              console.error(`Lỗi khi thêm job ${jobId} vào phiên:`, error);
+            });
+        
+          // Bắt đầu xử lý ảnh
+          await JobManager.startImageProcessing(file.path, jobId)
+            .catch(error => console.error(`Lỗi xử lý job ${jobId}:`, error));
+          
+          return {
+            filename: file.originalname,
+            jobId
+          };
+        })
+      );
       
       // Trả về danh sách jobId để client có thể theo dõi tiến trình
       res.json({
         success: true,
         jobs: jobResults,
-        message: 'Đã bắt đầu xử lý ảnh'
+        message: `Đã bắt đầu xử lý ${jobResults.length} ảnh`,
+        invalidFiles: invalidFiles.length > 0 ? invalidFiles : undefined
       });
     } catch (error) {
       console.error('Lỗi xử lý yêu cầu:', error);
@@ -302,7 +401,7 @@ app.get('/api/download/:jobId', async (req, res) => {
     
     const pdfPath = path.resolve(job.result.pdf);
     
-    if (!fs.existsSync(pdfPath)) {
+    if (!fsSync.existsSync(pdfPath)) {
       return res.status(404).json({
         success: false,
         message: 'File PDF không tồn tại'
