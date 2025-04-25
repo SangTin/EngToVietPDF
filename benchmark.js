@@ -1,4 +1,5 @@
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 const axios = require('axios');
 const FormData = require('form-data');
@@ -6,7 +7,7 @@ const FormData = require('form-data');
 const SERVER_URL = 'http://localhost:3000';
 const SAMPLE_IMAGES_DIR = './benchmark/images';
 const RESULTS_DIR = './benchmark/results';
-const CONCURRENT_LIMIT = 10;
+const CONCURRENT_LIMIT = 5; // Tăng số lượng file xử lý đồng thời
 
 // Đảm bảo thư mục kết quả tồn tại
 async function ensureDirectories() {
@@ -15,105 +16,96 @@ async function ensureDirectories() {
 }
 
 // Tải file lên và theo dõi tiến trình
-async function processImage(imagePath) {
-  const filename = path.basename(imagePath);
-  console.log(`Đang xử lý ${filename}...`);
+async function processImages(imagePaths) {
+  console.log(`Đang xử lý ${imagePaths.length} ảnh...`);
   
   const startTime = Date.now();
   const formData = new FormData();
-  formData.append('image', await fs.readFile(imagePath), filename);
+  // Thêm tất cả các file vào FormData
+  imagePaths.forEach(imagePath => {
+    formData.append('images', fsSync.createReadStream(imagePath), path.basename(imagePath));
+  });
   
   try {
     // Tải file lên
     const uploadResponse = await axios.post(
-      `${SERVER_URL}/api/process-image`,
+      `${SERVER_URL}/api/process-images`,
       formData,
       { headers: formData.getHeaders() }
     );
     
-    const { jobId } = uploadResponse.data;
-    console.log(`Job ID: ${jobId}`);
+    const { jobs } = uploadResponse.data;
+    console.log('Các job được tạo:', jobs.map(job => job.jobId));
     
-    // Kiểm tra trạng thái job cho đến khi hoàn thành
-    let completed = false;
-    let result = null;
-    
-    while (!completed) {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Đợi 1 giây
+    // Theo dõi trạng thái từng job
+    const jobResults = await Promise.all(jobs.map(async (jobInfo) => {
+      const { jobId, filename } = jobInfo;
+      console.log(`Theo dõi job ${jobId} cho file ${filename}`);
       
-      const statusResponse = await axios.get(`${SERVER_URL}/api/job/${jobId}`);
-      const { job } = statusResponse.data;
-      
-      if (job.status === 'completed') {
-        completed = true;
-        result = job;
-      } else if (job.status === 'error') {
-        throw new Error(`Job lỗi: ${job.message}`);
+      let job = null;
+      while (!job || job.status !== 'completed') {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Đợi 1 giây
+        
+        const statusResponse = await axios.get(`${SERVER_URL}/api/job/${jobId}`);
+        job = statusResponse.data.job;
+        
+        console.log(`${filename} - Trạng thái: ${job.status}, Bước: ${job.currentStep || 'chưa bắt đầu'}`);
+        
+        if (job.status === 'error') {
+          throw new Error(`Job lỗi: ${job.message}`);
+        }
       }
       
-      console.log(`${filename} - Trạng thái: ${job.status}, Bước: ${job.currentStep}`);
-    }
+      return {
+        filename,
+        jobId,
+        result: job.result
+      };
+    }));
     
     const endTime = Date.now();
     const processingTime = endTime - startTime;
     
     // Lưu kết quả
     const resultData = {
-      filename,
-      jobId,
       startTime,
       endTime,
       processingTime,
-      result
+      results: jobResults
     };
     
     await fs.writeFile(
-      path.join(RESULTS_DIR, `${filename.split('.')[0]}_result.json`),
+      path.join(RESULTS_DIR, `batch_result_${Date.now()}.json`),
       JSON.stringify(resultData, null, 2)
     );
     
-    return {
-      filename,
-      processingTime,
-      success: true
-    };
+    return resultData;
   } catch (error) {
-    console.error(`Lỗi xử lý ${filename}:`, error.message);
-    return {
-      filename,
-      error: error.message,
-      success: false
-    };
+    console.error('Lỗi xử lý batch:', error.message);
+    throw error;
   }
 }
 
-// Xử lý mảng công việc với giới hạn đồng thời
-async function processConcurrent(tasks, concurrencyLimit) {
+// Xử lý các batch ảnh với giới hạn đồng thời
+async function processBatchConcurrent(imagePaths, batchSize = 10) {
   const results = [];
-  const runningTasks = [];
-
-  for (const task of tasks) {
-    const promise = task().then(result => {
-      // Khi task hoàn thành, xóa nó khỏi danh sách chạy
-      const index = runningTasks.indexOf(promise);
-      if (index !== -1) runningTasks.splice(index, 1);
-      return result;
-    });
+  
+  // Chia các ảnh thành các batch
+  for (let i = 0; i < imagePaths.length; i += batchSize) {
+    const batchPaths = imagePaths.slice(i, i + batchSize);
     
-    runningTasks.push(promise);
-    results.push(promise);
-    
-    if (runningTasks.length >= concurrencyLimit) {
-      // Đợi cho đến khi ít nhất một task hoàn thành
-      await Promise.race(runningTasks);
+    try {
+      const batchResult = await processImages(batchPaths);
+      results.push(batchResult);
+    } catch (error) {
+      console.error(`Lỗi khi xử lý batch từ ${i} đến ${i + batchSize}:`, error);
     }
   }
   
-  // Đợi tất cả các công việc còn lại hoàn thành
-  return Promise.all(results);
+  return results;
 }
 
-// Thực hiện benchmark với tất cả các ảnh đồng thời với giới hạn
+// Thực hiện benchmark với tất cả các ảnh
 async function runBenchmark() {
   await ensureDirectories();
   
@@ -123,42 +115,32 @@ async function runBenchmark() {
       ['.jpg', '.jpeg', '.png', '.gif', '.bmp'].includes(path.extname(file).toLowerCase())
     );
     
+    const fullImagePaths = imageFiles.map(file => path.join(SAMPLE_IMAGES_DIR, file));
+    
     console.log(`Tìm thấy ${imageFiles.length} ảnh để benchmark`);
     
-    // Tạo mảng công việc
-    const tasks = imageFiles.map(file => {
-      return () => processImage(path.join(SAMPLE_IMAGES_DIR, file));
-    });
-    
-    // Xử lý công việc đồng thời với giới hạn
     const startTime = Date.now();
-    const results = await processConcurrent(tasks, CONCURRENT_LIMIT);
+    const results = await processBatchConcurrent(fullImagePaths);
     const totalTime = Date.now() - startTime;
     
     // Tạo báo cáo tổng hợp
     const summary = {
-      totalImages: results.length,
-      successfulProcesses: results.filter(r => r.success).length,
-      failedProcesses: results.filter(r => !r.success).length,
-      averageTime: results.filter(r => r.success)
-        .reduce((sum, r) => sum + r.processingTime, 0) / 
-        (results.filter(r => r.success).length || 1),
+      totalImages: fullImagePaths.length,
       totalTime,
-      concurrentLimit: CONCURRENT_LIMIT,
-      results
+      batchCount: results.length,
+      batchResults: results
     };
     
+    const summaryPath = path.join(RESULTS_DIR, `benchmark_summary_${Date.now()}.json`);
     await fs.writeFile(
-      path.join(RESULTS_DIR, `benchmark_summary_${Date.now()}.json`),
+      summaryPath,
       JSON.stringify(summary, null, 2)
     );
     
     console.log('Benchmark hoàn thành!');
     console.log(`Tổng cộng: ${summary.totalImages} ảnh`);
-    console.log(`Thành công: ${summary.successfulProcesses}`);
-    console.log(`Thất bại: ${summary.failedProcesses}`);
-    console.log(`Thời gian trung bình: ${summary.averageTime.toFixed(2)}ms`);
     console.log(`Thời gian tổng cộng: ${totalTime}ms`);
+    console.log(`Chi tiết báo cáo: ${summaryPath}`);
   } catch (error) {
     console.error('Lỗi trong quá trình benchmark:', error);
   }

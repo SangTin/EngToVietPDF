@@ -1,601 +1,655 @@
-<!-- public/index.html -->
 <!DOCTYPE html>
 <html lang="vi">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Công cụ OCR, Dịch và Tạo PDF</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <title>OCR & Dịch PDF</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 20px;
-            background-color: #f8f9fa;
+        .drop-zone {
+            border: 2px dashed #a2a2a2;
+            border-radius: 20px;
+            transition: all 0.3s ease;
         }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        .drop-zone:hover, .drop-zone.drag-over {
+            background-color: #f0f0f0;
+            border-color: #4a90e2;
         }
-
-        h1 {
-            color: #0d6efd;
-            margin-bottom: 30px;
+        .file-item {
+            transition: all 0.3s ease;
+        }
+        .file-item:hover {
+            background-color: #f5f5f5;
+            transform: scale(1.02);
+        }
+        .filename {
+            min-width: 300px;
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-block;
+          }
+        .progress-bar {
+            transition: width 0.5s ease;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #333;
+            color: #fff;
             text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
         }
-
-        .upload-area {
-            border: 2px dashed #0d6efd;
-            border-radius: 10px;
-            padding: 30px;
-            text-align: center;
-            margin-bottom: 30px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .upload-area:hover {
-            background-color: #f1f8ff;
-        }
-
-        .upload-area i {
-            font-size: 48px;
-            color: #0d6efd;
-            margin-bottom: 10px;
-        }
-
-        .preview-image {
-            max-width: 100%;
-            max-height: 300px;
-            border-radius: 5px;
-            margin-top: 15px;
-        }
-
-        .progress-section {
-            margin-top: 30px;
-            display: none;
-        }
-
-        .result-section {
-            margin-top: 30px;
-            display: none;
-        }
-
-        .text-box {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            background-color: #f9f9f9;
-            min-height: 150px;
-        }
-
-        .loading {
-            text-align: center;
-            margin: 20px 0;
-            display: none;
-        }
-
-        .spinner-border {
-            width: 3rem;
-            height: 3rem;
-        }
-
-        .btn-primary {
-            background-color: #0d6efd;
-            border-color: #0d6efd;
-            padding: 10px 25px;
-        }
-
-        .btn-success {
-            background-color: #198754;
-            border-color: #198754;
-            padding: 10px 25px;
-        }
-
-        .error-message {
-            color: #dc3545;
-            margin-top: 10px;
-            display: none;
-        }
-
-        .status-label {
-            font-weight: bold;
-            margin-right: 10px;
-        }
-
-        .status-icon {
-            margin-right: 5px;
-        }
-
-        .status-pending {
-            color: #6c757d;
-        }
-
-        .status-processing {
-            color: #0d6efd;
-            animation: spin 1.5s linear infinite;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        .status-completed {
-            color: #198754;
-        }
-
-        .status-error {
-            color: #dc3545;
-        }
-
-        .progress {
-            height: 20px;
-            margin-top: 10px;
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
         }
     </style>
 </head>
-
-<body>
-    <div class="container">
-        <h1>Công cụ OCR, Dịch và Tạo PDF</h1>
-        <div class="alert alert-info mt-4" id="processingStatusAlert" style="display: none;">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <i class="bi bi-info-circle me-2"></i>
-                    <span id="processingStatusText">Đang xử lý...</span>
-                </div>
-                <button type="button" class="btn-close" aria-label="Close"
-                    onclick="document.getElementById('processingStatusAlert').style.display = 'none';"></button>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="bg-white shadow-xl rounded-2xl overflow-hidden">
+            <div class="p-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <i class="fas fa-file-upload mr-3"></i>
+                    OCR & Dịch Tài Liệu
+                </h1>
+                <p class="text-sm text-blue-100 mt-2">
+                    Tải lên nhiều tệp để chuyển đổi, nhận dạng và dịch thuật
+                </p>
             </div>
-        </div>
 
-        <div class="upload-area" id="uploadArea">
-            <i class="bi bi-cloud-arrow-up"></i>
-            <h4>Kéo thả, nhấp để chọn, hoặc dán hình ảnh vào đây</h4>
-            <p class="text-muted">Hỗ trợ: JPG, JPEG, PNG</p>
-            <input type="file" id="fileInput" accept="image/*" style="display: none;" />
-            <img id="previewImage" class="preview-image" style="display: none;" />
-        </div>
-
-        <div class="text-center">
-            <button class="btn btn-primary btn-lg" id="processButton" disabled>Xử lý hình ảnh</button>
-        </div>
-
-        <div class="error-message" id="errorMessage"></div>
-
-        <!-- Phần hiển thị tiến trình xử lý -->
-        <div class="progress-section" id="progressSection">
-            <h3>Tiến trình xử lý</h3>
-
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div>
-                            <span class="status-label">Trạng thái:</span>
-                            <span id="jobStatus" class="status-processing">
-                                <i class="bi bi-hourglass-split status-icon"></i>
-                                Đang xử lý
+            <div class="p-6">
+                <div id="uploadArea" class="drop-zone p-8 text-center cursor-pointer">
+                    <input type="file" id="fileInput" multiple accept="image/*" style="display: none;" />
+                    <div class="text-center">
+                        <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4 block"></i>
+                        <p class="text-gray-600 font-semibold">
+                            Kéo và thả tệp tại đây hoặc 
+                            <span class="text-blue-600 hover:underline" onclick="">
+                                Chọn tệp
                             </span>
-                        </div>
-                        <div>
-                            <span class="status-label">Job ID:</span>
-                            <span id="jobId">-</span>
-                        </div>
-                    </div>
-
-                    <div class="progress">
-                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
-                            role="progressbar" style="width: 0%"></div>
-                    </div>
-
-                    <div class="mt-3">
-                        <div class="d-flex align-items-center mb-2">
-                            <div class="status-indicator" id="ocrStatus">
-                                <i class="bi bi-circle status-icon status-pending"></i>
-                            </div>
-                            <span>OCR - Nhận dạng văn bản</span>
-                        </div>
-
-                        <div class="d-flex align-items-center mb-2">
-                            <div class="status-indicator" id="translateStatus">
-                                <i class="bi bi-circle status-icon status-pending"></i>
-                            </div>
-                            <span>Dịch văn bản</span>
-                        </div>
-
-                        <div class="d-flex align-items-center">
-                            <div class="status-indicator" id="pdfStatus">
-                                <i class="bi bi-circle status-icon status-pending"></i>
-                            </div>
-                            <span>Tạo file PDF</span>
-                        </div>
+                        </p>
+                        <p class="text-sm text-gray-500 mt-2">
+                            Hỗ trợ ảnh (jpg, png, gif) (tối đa 10MB)
+                        </p>
                     </div>
                 </div>
-            </div>
 
-            <div class="alert alert-warning" id="processingInfo">
-                <i class="bi bi-info-circle-fill me-2"></i>
-                Quá trình xử lý diễn ra độc lập trên server. Bạn có thể đóng trang này và quay lại sau.
-            </div>
-        </div>
+                <!-- Combined file and processing list -->
+                <div id="fileProcessingList" class="mt-6 space-y-3">
+                    <!-- Files and processing items will be added here dynamically -->
+                </div>
 
-        <div class="result-section" id="resultSection">
-            <h3>Kết quả</h3>
-
-            <div class="text-center">
-                <a id="downloadPdfButton" class="btn btn-success btn-lg" target="_blank">
-                    <i class="bi bi-file-earmark-pdf"></i> Tải về PDF
-                </a>
-                <button id="newProcessBtn" class="btn btn-primary btn-lg ms-2">
-                    <i class="bi bi-arrow-repeat"></i> Xử lý ảnh mới
-                </button>
+                <div id="uploadActions" class="mt-6 flex justify-between items-center">
+                    <div class="text-sm text-gray-600">
+                        <span id="totalFiles">0 tệp</span>
+                        <span class="mx-2">•</span>
+                        <span id="totalSize">0 KB</span>
+                    </div>
+                    <button id="uploadButton" class="bg-gradient-to-r from-green-500 to-blue-500 text-white px-6 py-2 rounded-full hover:opacity-90 transition disabled:opacity-50" disabled>
+                        <i class="fas fa-paper-plane mr-2"></i>
+                        Chuyển đổi
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const uploadArea = document.getElementById('uploadArea');
-            const fileInput = document.getElementById('fileInput');
-            const previewImage = document.getElementById('previewImage');
-            const processButton = document.getElementById('processButton');
-            const progressSection = document.getElementById('progressSection');
-            const resultSection = document.getElementById('resultSection');
-            const originalText = document.getElementById('originalText');
-            const downloadPdfButton = document.getElementById('downloadPdfButton');
-            const errorMessage = document.getElementById('errorMessage');
-            const processingStatusAlert = document.getElementById('processingStatusAlert');
-            const processingStatusText = document.getElementById('processingStatusText');
-            const newProcessBtn = document.getElementById('newProcessBtn');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileProcessingList = document.getElementById('fileProcessingList');
+        const totalFiles = document.getElementById('totalFiles');
+        const totalSize = document.getElementById('totalSize');
+        const uploadButton = document.getElementById('uploadButton');
+        const currentFiles = [];
 
-            // Các phần tử hiển thị trạng thái job
-            const jobStatus = document.getElementById('jobStatus');
-            const jobId = document.getElementById('jobId');
-            const progressBar = document.getElementById('progressBar');
-            const ocrStatus = document.getElementById('ocrStatus');
-            const translateStatus = document.getElementById('translateStatus');
-            const pdfStatus = document.getElementById('pdfStatus');
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
 
-            // Biến lưu trữ thông tin polling
-            let currentJobId = null;
-            let pollingInterval = null;
+        // Highlight drop zone when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, highlight, false);
+        });
 
-            // Xử lý sự kiện click vào vùng upload
-            uploadArea.addEventListener('click', function () {
-                fileInput.click();
-            });
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, unhighlight, false);
+        });
 
-            // Xử lý sự kiện kéo và thả
-            uploadArea.addEventListener('dragover', function (e) {
-                e.preventDefault();
-                uploadArea.style.backgroundColor = '#f1f8ff';
-                uploadArea.style.borderColor = '#0d6efd';
-            });
+        // Handle click on upload area
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
 
-            document.addEventListener('paste', function (e) {
-                e.preventDefault();
-                if (e.clipboardData && e.clipboardData.files.length) {
-                    handleFile(e.clipboardData.files[0]);
-                }
-            });
+        // Handle dropped files
+        uploadArea.addEventListener('drop', handleDrop, false);
+        fileInput.addEventListener('change', handleFiles, false);
 
-            uploadArea.addEventListener('dragleave', function () {
-                uploadArea.style.backgroundColor = '';
-                uploadArea.style.borderColor = '#0d6efd';
-            });
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
 
-            uploadArea.addEventListener('drop', function (e) {
-                e.preventDefault();
-                uploadArea.style.backgroundColor = '';
-                uploadArea.style.borderColor = '#0d6efd';
+        function highlight() {
+            uploadArea.classList.add('drag-over');
+        }
 
-                if (e.dataTransfer.files.length) {
-                    handleFile(e.dataTransfer.files[0]);
-                }
-            });
+        function unhighlight() {
+            uploadArea.classList.remove('drag-over');
+        }
 
-            // Xử lý khi chọn file
-            fileInput.addEventListener('change', function () {
-                if (fileInput.files.length) {
-                    handleFile(fileInput.files[0]);
-                }
-            });
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
 
-            // Hàm xử lý file được chọn
-            function handleFile(file) {
-                // Kiểm tra loại file
-                if (!file.type.match('image.*')) {
-                    showError('Vui lòng chọn file hình ảnh.');
-                    return;
-                }
+        function handleFiles(files) {
+            // Normalize files input (support both event and FileList)
+            files = files.target ? files.target.files : files;
             
-                // Hiển thị hình ảnh preview
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    previewImage.src = e.target.result;
-                    previewImage.style.display = 'block';
-                    processButton.disabled = false;
-                    hideError();
+            // Validate files first
+            const validFiles = validateFiles(files);
             
-                    // Ẩn thông báo cache khi tải file mới
-                    if (processingStatusAlert) {
-                        processingStatusAlert.style.display = 'none';
-                    }
+            // If no valid files, don't do anything further
+            if (validFiles.length === 0) {
+                return;
+            }
             
-                    // Gán file vào input
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(file);
-                    fileInput.files = dataTransfer.files;
-                };
-                reader.readAsDataURL(file);
+            // Get existing files - need to convert to real array to keep reference
+            let startIdx = currentFiles.length;
+            let totalFileSize = getTotalSize(currentFiles);
+            
+            // Add new files and create UI elements
+            validFiles.forEach((file, i) => {
+                const newIndex = startIdx + i;
+                currentFiles.push(file);
+                totalFileSize += file.size;
+                
+                const fileItem = createFileItem(file, newIndex);
+                fileProcessingList.appendChild(fileItem);
+            });
+            
+            // Update file count and size
+            const totalFilesCount = currentFiles.length;
+            totalFiles.textContent = `${totalFilesCount} tệp`;
+            totalSize.textContent = formatFileSize(totalFileSize);
+            
+            // Enable upload button
+            updateUploadButtonState();
+        }
+        
+        function getTotalSize(files) {
+            return Array.from(files).reduce((total, file) => total + file.size, 0);
+        }
+
+        function createFileItem(file, index) {
+            const fileId = `file-${Date.now()}-${index}`;
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item flex flex-wrap items-center bg-gray-100 p-3 rounded-lg';
+            fileItem.id = fileId;
+            fileItem.dataset.index = index;
+            fileItem.dataset.filename = file.name;
+            fileItem.dataset.processed = 'false';
+            fileItem.dataset.processing = 'false';
+            
+            // Determine icon based on file type
+            const fileTypeIcon = getFileTypeIcon(file.type);
+            
+            fileItem.innerHTML = `
+                <div class="mr-4 text-2xl text-gray-500">${fileTypeIcon}</div>
+                <div class="flex-grow flex items-center">
+                    <div class="flex-grow">
+                        <p class="font-semibold text-sm filename">${file.name}</p>
+                        <p class="text-xs text-gray-500">${formatFileSize(file.size)}</p>
+                    </div>
+                    <!-- Status and download area - initially hidden -->
+                    <div class="status-area hidden flex items-center mr-4 flex-1 justify-end">
+                        <div class="w-40 bg-gray-200 rounded-full h-2.5 mr-4">
+                            <div class="bg-blue-600 h-2.5 rounded-full progress-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="flex items-center w-24">
+                            <span class="text-xs text-gray-600 whitespace-nowrap job-status flex-grow">Đang chờ</span>
+                            <a href="#" class="download-link text-green-600 hover:text-green-800 ml-2 hidden">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <button class="text-red-500 hover:text-red-700 remove-btn ml-2">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            
+            // Add event listener for remove button
+            fileItem.querySelector('.remove-btn').addEventListener('click', () => {
+                removeFile(fileId);
+            });
+            
+            return fileItem;
+        }
+
+        function getFileTypeIcon(fileType) {
+            if (fileType.startsWith('image/')) return '<i class="fas fa-image"></i>';
+            if (fileType === 'application/pdf') return '<i class="fas fa-file-pdf"></i>';
+            return '<i class="fas fa-file"></i>';
+        }
+
+        function removeFile(fileId) {
+            const itemToRemove = document.getElementById(fileId);
+            const fileIndex = parseInt(itemToRemove.dataset.index);
+            
+            // Check if file is currently processing
+            if (itemToRemove && itemToRemove.dataset.processing === 'true') {
+                alert('Không thể xóa tệp đang xử lý!');
+                return;
+            }
+            
+            // Remove the specific file at the given index
+            currentFiles.splice(fileIndex, 1);
+            
+            // Remove the item from the DOM
+            if (itemToRemove) {
+                fileProcessingList.removeChild(itemToRemove);
+            }
+            
+            // If no files left, reset everything
+            if (currentFiles.length === 0) {
+                fileInput.value = ''; // Clear the input
+                totalFiles.textContent = '0 tệp';
+                totalSize.textContent = '0 KB';
+                uploadButton.disabled = true;
+                return;
             }
 
-            // Xử lý khi nhấn nút xử lý hình ảnh
-            processButton.addEventListener('click', function () {
-                // Hiển thị phần tiến trình xử lý
-                progressSection.style.display = 'block';
-                resultSection.style.display = 'none';
-                processingStatusAlert.style.display = 'none';
-                hideError();
+            // Create a new DataTransfer object and add remaining files
+            const dt = new DataTransfer();
+            let size = 0;
+            
+            // Get all remaining file items and sort them by their current index
+            const remainingItems = Array.from(fileProcessingList.querySelectorAll('.file-item'))
+                .sort((a, b) => parseInt(a.dataset.index) - parseInt(b.dataset.index));
 
-                // Reset trạng thái các bước xử lý
-                resetProgress();
+            remainingItems.forEach((item, i) => {
+                const file = currentFiles[i];
+                
+                if (file) {
+                    item.dataset.index = i;
+                    size += file.size;
+                    dt.items.add(file);
+                }
+            });
+            
+            // Update file count and size
+            totalFiles.textContent = `${currentFiles.length} tệp`;
+            totalSize.textContent = formatFileSize(size);
+            
+            // Update upload button state
+            updateUploadButtonState();
+        }
 
-                // Bắt đầu đo thời gian xử lý
-                startTime = performance.now();
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
 
-                // Tạo FormData để gửi file lên server
-                const formData = new FormData();
-                formData.append('image', fileInput.files[0]);
+        // Upload functionality
+        uploadButton.addEventListener('click', uploadFiles);
 
-                // Gửi request lên server
-                fetch('/api/process-image', {
+        async function uploadFiles() {
+            // Get unprocessed files only
+            const filesToProcess= [];
+            const fileItemsToProcess = Array.from(
+                fileProcessingList.querySelectorAll('.file-item')
+            ).filter(item => 
+                item.dataset.processed === 'false' && 
+                item.dataset.processing !== 'true'
+            );
+
+            if (fileItemsToProcess.length > 10) {
+                alert('Chỉ có thể xử lý tối đa 10 tệp cùng một lúc!');
+                return;
+            }
+            
+            for (let i = 0; i < fileItemsToProcess.length; i++) {
+                const fileItem = fileItemsToProcess[i];
+                const fileIndex = parseInt(fileItem.dataset.index);
+                filesToProcess.push(currentFiles[fileIndex]);
+            }
+            
+            // If no files to process, return
+            if (filesToProcess.length === 0) {
+                alert('Không có tệp nào cần xử lý!');
+                return;
+            }
+
+            // Update UI to processing state
+            uploadButton.disabled = true;
+            uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang xử lý';
+            
+            // Show progress sections for files being processed
+            fileItemsToProcess.forEach(item => {
+                const statusArea = item.querySelector('.status-area');
+                if (statusArea) {
+                    statusArea.classList.remove('hidden');
+                }
+                item.dataset.processing = 'true';
+            });
+            
+            const formData = new FormData();
+            filesToProcess.forEach((file, index) => {
+                formData.append('images', file);
+            });
+
+            try {
+                const response = await fetch('/api/process-images', {
                     method: 'POST',
                     body: formData
-                })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Lỗi kết nối máy chủ');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (!data.success) {
-                            throw new Error(data.message || 'Đã xảy ra lỗi khi xử lý yêu cầu');
-                        }
+                });
 
-                        // Lưu jobId và hiển thị
-                        currentJobId = data.jobId;
-                        jobId.textContent = currentJobId;
+                const data = await response.json();
 
-                        // Bắt đầu polling để kiểm tra trạng thái
-                        startPolling();
-                    })
-                    .catch(error => {
-                        showError(error.message || 'Đã xảy ra lỗi trong quá trình xử lý');
-                        console.error('Error:', error);
-                        progressSection.style.display = 'none';
-                    });
-            });
-
-            // Bắt đầu kiểm tra trạng thái job định kỳ
-            function startPolling() {
-                if (pollingInterval) {
-                    clearInterval(pollingInterval);
+                if (!data.success) {
+                    throw new Error(data.message || 'Lỗi tải lên');
                 }
 
-                // Kiểm tra ngay lập tức
-                checkJobStatus();
-
-                // Sau đó kiểm tra mỗi 100ms
-                pollingInterval = setInterval(checkJobStatus, 100);
-            }
-
-            // Kiểm tra trạng thái job
-            async function checkJobStatus() {
-                if (!currentJobId) return;
-
-                try {
-                    const response = await fetch(`/api/job/${currentJobId}`);
-
-                    if (!response.ok) {
-                        throw new Error('Lỗi kiểm tra trạng thái job');
+                // Monitor job status for each file
+                data.jobs.forEach((jobInfo, index) => {
+                    const fileItem = fileItemsToProcess[index];
+                    
+                    if (fileItem) {
+                        fileItem.dataset.jobId = jobInfo.jobId;
+                        monitorJobStatus(jobInfo.jobId, fileItem);
                     }
+                });
 
+                // Reset UI after upload
+                uploadButton.innerHTML = '<i class="fas fa-check mr-2"></i>Đã tải lên';
+                
+                // Update upload button state
+                setTimeout(() => {
+                    uploadButton.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Chuyển đổi';
+                    updateUploadButtonState();
+                }, 3000);
+
+            } catch (error) {
+                console.error('Lỗi:', error);
+                alert('Đã có lỗi xảy ra: ' + error.message);
+                
+                // Reset UI and mark files as not processed
+                fileItemsToProcess.forEach(item => {
+                    item.dataset.processing = 'false';
+                    const statusArea = item.querySelector('.status-area');
+                    if (statusArea) {
+                        statusArea.classList.add('hidden');
+                    }
+                });
+                
+                uploadButton.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Chuyển đổi';
+                updateUploadButtonState();
+            }
+        }
+        
+        function updateUploadButtonState() {
+            // Check if there are any unprocessed files
+            const unprocessedFiles = Array.from(
+                fileProcessingList.querySelectorAll('.file-item')
+            ).filter(item => 
+                item.dataset.processed === 'false' && 
+                item.dataset.processing !== 'true'
+            );
+            
+            const hasUnprocessedFiles = unprocessedFiles.length > 0;
+            
+            // Enable/disable button
+            uploadButton.disabled = !hasUnprocessedFiles;
+            
+            // Update button text to show count
+            if (hasUnprocessedFiles) {
+                uploadButton.innerHTML = `<i class="fas fa-paper-plane mr-2"></i>Chuyển đổi (${unprocessedFiles.length})`;
+            } else {
+                uploadButton.innerHTML = `<i class="fas fa-paper-plane mr-2"></i>Chuyển đổi`;
+            }
+            
+            return hasUnprocessedFiles;
+        }
+
+        async function monitorJobStatus(jobId, fileItem) {
+            if (!fileItem) return;
+            
+            const statusEl = fileItem.querySelector('.job-status');
+            const progressBar = fileItem.querySelector('.progress-bar');
+            const downloadLink = fileItem.querySelector('.download-link');
+            
+            const steps = ['preprocess', 'ocr', 'translate', 'pdf'];
+            
+            try {
+                while (true) {
+                    const response = await fetch(`/api/job/${jobId}`);
                     const data = await response.json();
-
+                    
                     if (!data.success) {
-                        throw new Error(data.message || 'Lỗi kiểm tra trạng thái');
+                        throw new Error(data.message || 'Lỗi lấy trạng thái');
                     }
-
-                    const { job } = data;
-
-                    // Cập nhật trạng thái job
-                    updateJobStatus(job);
-
-                    // Nếu job hoàn thành, hiển thị kết quả
+                    
+                    const job = data.job;
+                    
+                    // Update status and progress bar
+                    const currentStepIndex = steps.indexOf(job.currentStep || '');
+                    const progress = currentStepIndex >= 0 ? 
+                        ((currentStepIndex + 1) / steps.length * 100) : 0;
+                    
+                    progressBar.style.width = `${progress}%`;
+                    
+                    // Update status text
+                    statusEl.textContent = getStatusText(job.status, job.currentStep);
+                    
+                    // If job is completed
                     if (job.status === 'completed') {
-                        displayResults(job);
-                        stopPolling();
-                    }
-                    // Nếu job bị lỗi
-                    else if (job.status === 'error') {
-                        updateStatusError(job.message || 'Có lỗi xảy ra trong quá trình xử lý');
-                        stopPolling();
-                    }
-                } catch (error) {
-                    console.error('Lỗi kiểm tra trạng thái:', error);
-                    updateStatusError(error.message);
-                }
-            }
-
-            // Cập nhật trạng thái job trên giao diện
-            function updateJobStatus(job) {
-                // Cập nhật trạng thái tổng quát
-                if (job.status === 'pending') {
-                    jobStatus.className = 'status-pending';
-                    jobStatus.innerHTML = '<i class="bi bi-clock status-icon"></i> Đang chờ xử lý';
-                    progressBar.style.width = '0%';
-                }
-                else if (job.status === 'processing') {
-                    jobStatus.className = 'status-processing';
-                    jobStatus.innerHTML = '<i class="bi bi-hourglass-split status-icon"></i> Đang xử lý';
-                }
-                else if (job.status === 'completed') {
-                    jobStatus.className = 'status-completed';
-                    jobStatus.innerHTML = '<i class="bi bi-check-circle status-icon"></i> Hoàn thành';
-                    progressBar.style.width = '100%';
-                }
-                else if (job.status === 'error') {
-                    jobStatus.className = 'status-error';
-                    jobStatus.innerHTML = '<i class="bi bi-exclamation-triangle status-icon"></i> Lỗi';
-                }
-
-                // Cập nhật trạng thái dựa trên bước xử lý hiện tại (currentStep)
-                if (job.currentStep) {
-                    // Nếu đang xử lý OCR
-                    if (job.currentStep === 'ocr') {
-                        ocrStatus.innerHTML = '<i class="bi bi-arrow-repeat status-icon status-processing-animation"></i> Đang nhận dạng văn bản...';
-                        translateStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ dịch văn bản';
-                        pdfStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ tạo PDF';
-                        progressBar.style.width = '15%';
-                    }
-                    // Nếu đang xử lý dịch
-                    else if (job.currentStep === 'translate') {
-                        ocrStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã nhận dạng';
-                        translateStatus.innerHTML = '<i class="bi bi-arrow-repeat status-icon status-processing-animation"></i> Đang dịch...';
-                        pdfStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ tạo PDF';
-                        progressBar.style.width = '45%';
-                    }
-                    // Nếu đang xử lý PDF
-                    else if (job.currentStep === 'pdf') {
-                        ocrStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã nhận dạng';
-                        translateStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã dịch';
-                        pdfStatus.innerHTML = '<i class="bi bi-arrow-repeat status-icon status-processing-animation"></i> Đang tạo PDF...';
-                        progressBar.style.width = '75%';
-                    }
-                    return; // Thoát khỏi hàm nếu đã xử lý currentStep
-                }
-
-                // Xử lý khi không có currentStep nhưng có result (hoàn thành từng phần)
-                if (job.result) {
-                    // Tiến trình OCR
-                    if (job.result.ocr) {
-                        ocrStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã nhận dạng';
-                        if (progressBar.style.width === '0%') {
-                            progressBar.style.width = '33%';
-                        }
-                    } else {
-                        ocrStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ nhận dạng';
-                    }
-
-                    // Tiến trình dịch
-                    if (job.result.translate) {
-                        translateStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã dịch';
-                        if (progressBar.style.width === '33%') {
-                            progressBar.style.width = '66%';
-                        }
-                    } else {
-                        translateStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ dịch';
-                    }
-
-                    // Tiến trình tạo PDF
-                    if (job.result.pdf) {
-                        pdfStatus.innerHTML = '<i class="bi bi-check-circle status-icon status-completed"></i> Đã tạo PDF';
                         progressBar.style.width = '100%';
-                    } else {
-                        pdfStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i> Chờ tạo PDF';
+                        progressBar.classList.remove('bg-blue-600');
+                        progressBar.classList.add('bg-green-600');
+                        
+                        // Display download link
+                        if (job.result && job.result.pdf) {
+                            downloadLink.href = `/api/download/${jobId}`;
+                            downloadLink.classList.remove('hidden');
+                        }
+                        
+                        // Mark file as completely processed
+                        fileItem.dataset.processing = 'false';
+                        fileItem.dataset.processed = 'true';
+                        
+                        // Update upload button state - might be other files waiting
+                        updateUploadButtonState();
+                        break;
                     }
+                    
+                    // If job failed
+                    if (job.status === 'error') {
+                        progressBar.classList.remove('bg-blue-600');
+                        progressBar.classList.add('bg-red-600');
+                        statusEl.textContent = `Lỗi: ${job.message || 'Xử lý thất bại'}`;
+                        
+                        // Mark file as not processed so it can be retried
+                        fileItem.dataset.processing = 'false';
+                        fileItem.dataset.processed = 'false';
+                        
+                        // Update upload button state
+                        updateUploadButtonState();
+                        break;
+                    }
+                    
+                    // Wait 1 second before checking again
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
+            } catch (error) {
+                console.error('Lỗi theo dõi job:', error);
+                statusEl.textContent = `Lỗi: ${error.message}`;
+                progressBar.classList.remove('bg-blue-600');
+                progressBar.classList.add('bg-red-600');
+                
+                // Mark file as not processed so it can be retried
+                fileItem.dataset.processing = 'false';
+                fileItem.dataset.processed = 'false';
+                
+                // Update upload button state
+                updateUploadButtonState();
             }
+        }
 
-            // Hiển thị kết quả khi job hoàn thành
-            function displayResults(job) {
-                // Ẩn phần tiến trình, hiển thị phần kết quả
-                progressSection.style.display = 'none';
-                resultSection.style.display = 'block';
+        function getStatusText(status, currentStep) {
+            const statusMap = {
+                'pending': 'Đang chờ xử lý',
+                'processing': getProcessingStepText(currentStep),
+                'completed': 'Hoàn thành',
+                'error': 'Lỗi'
+            };
+            
+            return statusMap[status] || status;
+        }
 
-                // Hiển thị văn bản OCR và văn bản đã dịch
-                if (job.result) {
-                    // Cập nhật URL tải xuống PDF
-                    downloadPdfButton.href = `/api/download/${currentJobId}`;
+        function getProcessingStepText(step) {
+            const stepMap = {
+                'preprocess': 'Tiền xử lý ảnh',
+                'ocr': 'Nhận dạng chữ',
+                'translate': 'Dịch thuật',
+                'pdf': 'Tạo PDF'
+            };
+            
+            return stepMap[step] || 'Đang xử lý';
+        }
+
+        // File validation
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+        const ALLOWED_TYPES = [
+            'image/jpeg', 
+            'image/png',
+            'application/pdf'
+        ];
+
+        function validateFiles(files) {
+            const invalidFiles = [];
+
+            // Validate each file
+            const validFiles = Array.from(files).filter(file => {
+                // Check file type
+                if (!ALLOWED_TYPES.includes(file.type)) {
+                    invalidFiles.push({
+                        name: file.name, 
+                        reason: 'Định dạng không được hỗ trợ'
+                    });
+                    return false;
                 }
 
-                // Hiển thị thông báo xử lý từ cache (nếu có)
-                const processingTime = (performance.now() - startTime) / 1000;
-                processingStatusText.textContent = `Xử lý hoàn tất trong ${processingTime.toFixed(2)} giây.`;
-                processingStatusAlert.style.display = 'block';
-                processingStatusAlert.className = 'alert alert-info mt-4';
-            }
-
-            // Cập nhật trạng thái khi có lỗi
-            function updateStatusError(message) {
-                jobStatus.className = 'status-error';
-                jobStatus.innerHTML = '<i class="bi bi-exclamation-triangle status-icon"></i> Lỗi';
-                showError(message);
-            }
-
-            // Reset trạng thái các bước xử lý
-            function resetProgress() {
-                ocrStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i>';
-                translateStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i>';
-                pdfStatus.innerHTML = '<i class="bi bi-circle status-icon status-pending"></i>';
-                progressBar.style.width = '0%';
-                jobStatus.className = 'status-pending';
-                jobStatus.innerHTML = '<i class="bi bi-clock status-icon"></i> Đang chờ xử lý';
-            }
-
-            // Dừng polling
-            function stopPolling() {
-                if (pollingInterval) {
-                    clearInterval(pollingInterval);
-                    pollingInterval = null;
+                // Check file size
+                if (file.size > MAX_FILE_SIZE) {
+                    invalidFiles.push({
+                        name: file.name, 
+                        reason: 'Kích thước vượt quá 10MB'
+                    });
+                    return false;
                 }
-            }
 
-            // Hiển thị thông báo lỗi
-            function showError(message) {
-                errorMessage.textContent = message;
-                errorMessage.style.display = 'block';
-            }
-
-            // Ẩn thông báo lỗi
-            function hideError() {
-                errorMessage.style.display = 'none';
-            }
-
-            // Xử lý nút "Xử lý ảnh mới"
-            newProcessBtn.addEventListener('click', function () {
-                // Reset giao diện
-                progressSection.style.display = 'none';
-                resultSection.style.display = 'none';
-                processingStatusAlert.style.display = 'none';
-                fileInput.value = '';
-                previewImage.style.display = 'none';
-                processButton.disabled = true;
-                currentJobId = null;
-                stopPolling();
-                hideError();
+                return true;
             });
 
-            // Biến lưu thời gian bắt đầu
-            let startTime;
+            // Show error notification for invalid files
+            if (invalidFiles.length > 0) {
+                showFileValidationErrors(invalidFiles);
+            }
+
+            return validFiles;
+        }
+
+        function showFileValidationErrors(invalidFiles) {
+            // Create error modal
+            const errorModal = document.createElement('div');
+            errorModal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+            
+            errorModal.innerHTML = `
+                <div class="bg-white rounded-lg p-6 max-w-md w-full">
+                    <div class="flex items-center mb-4 text-red-600">
+                        <i class="fas fa-exclamation-triangle mr-3 text-2xl"></i>
+                        <h2 class="text-xl font-bold">Lỗi Tải Tệp</h2>
+                    </div>
+                    <div class="max-h-64 overflow-y-auto">
+                        <ul class="space-y-2">
+                            ${invalidFiles.map(file => `
+                                <li class="flex justify-between items-center bg-red-50 p-2 rounded">
+                                    <span class="font-medium">${file.name}</span>
+                                    <span class="text-red-600 text-sm">${file.reason}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Add close functionality
+            const closeButton = errorModal.querySelector('button');
+            closeButton.addEventListener('click', () => {
+                document.body.removeChild(errorModal);
+            });
+
+            // Add to body
+            document.body.appendChild(errorModal);
+        }
+
+        // Global error handling
+        window.addEventListener('error', function(event) {
+            console.error('Unhandled error:', event.error);
+            
+            // Create error notification
+            const errorNotification = document.createElement('div');
+            errorNotification.className = 'fixed top-4 right-4 bg-red-500 text-white p-4 rounded-lg shadow-lg z-50';
+            errorNotification.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas fa-exclamation-triangle mr-3"></i>
+                    <span>Đã xảy ra lỗi không mong muốn</span>
+                </div>
+                <button class="mt-2 text-sm underline">Chi tiết</button>
+            `;
+
+            const detailButton = errorNotification.querySelector('button');
+            detailButton.addEventListener('click', () => {
+                alert(event.error.stack || 'Không có thông tin chi tiết');
+            });
+
+            document.body.appendChild(errorNotification);
+
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                if (document.body.contains(errorNotification)) {
+                    document.body.removeChild(errorNotification);
+                }
+            }, 5000);
         });
     </script>
 </body>
-
 </html>

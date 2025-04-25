@@ -43,39 +43,67 @@ const upload = multer({
       cb(new Error('Chỉ chấp nhận file ảnh!'), false);
     }
   }
-});
+}).array('images', 10); // Cho phép tải lên tối đa 10 ảnh
 
 // API endpoint để tải lên ảnh và xử lý
-app.post('/api/process-image', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'Không có file nào được tải lên' });
+app.post('/api/process-images', (req, res) => {
+  upload(req, res, async function(err) {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Lỗi tải lên file',
+        error: err.message 
+      });
+    } else if (err) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Chỉ chấp nhận file ảnh',
+        error: err.message 
+      });
     }
-    
-    // Tạo job mới
-    const jobId = await JobManager.createJob(req.file.path);
-    
-    // Bắt đầu xử lý ảnh (không chờ đợi hoàn thành)
-    await JobManager.startImageProcessing(req.file.path, jobId)
-      .catch(error => console.error(`Lỗi xử lý job ${jobId}:`, error));
-    
-    // Trả về jobId để client có thể theo dõi tiến trình
-    res.json({
-      success: true,
-      jobId,
-      message: 'Đã bắt đầu xử lý ảnh'
-    });
-  } catch (error) {
-    console.error('Lỗi xử lý yêu cầu:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Đã xảy ra lỗi khi xử lý yêu cầu',
-      error: error.message
-    });
-  }
+
+    // Kiểm tra xem có file nào được tải lên không
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Không có file nào được tải lên' 
+      });
+    }
+
+    try {
+      // Xử lý từng file
+      const jobResults = await Promise.all(req.files.map(async (file) => {
+        // Tạo job mới
+        const jobId = await JobManager.createJob();
+        
+        // Bắt đầu xử lý ảnh (không chờ đợi hoàn thành)
+        await JobManager.startImageProcessing(file.path, jobId)
+          .catch(error => console.error(`Lỗi xử lý job ${jobId}:`, error));
+        
+        return {
+          filename: file.originalname,
+          jobId
+        };
+      }));
+      
+      // Trả về danh sách jobId để client có thể theo dõi tiến trình
+      res.json({
+        success: true,
+        jobs: jobResults,
+        message: 'Đã bắt đầu xử lý ảnh'
+      });
+    } catch (error) {
+      console.error('Lỗi xử lý yêu cầu:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Đã xảy ra lỗi khi xử lý yêu cầu',
+        error: error.message
+      });
+    }
+  });
 });
 
-// API endpoint để kiểm tra trạng thái job
+// API endpoint để kiểm tra trạng thái job (giữ nguyên như cũ)
 app.get('/api/job/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
@@ -102,7 +130,7 @@ app.get('/api/job/:jobId', async (req, res) => {
   }
 });
 
-// API endpoint để tải xuống PDF
+// API endpoint để tải xuống PDF (giữ nguyên như cũ)
 app.get('/api/download/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
