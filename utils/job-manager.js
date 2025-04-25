@@ -1,6 +1,19 @@
 const { v4: uuidv4 } = require('uuid');
-const { processOCR } = require('./queue');
+const { processPreprocess } = require('./queue');
 const cache = require('./cache');
+
+async function getOrSetCache(key, dataFn, ttl) {
+    // Kiểm tra cache trước
+    const cachedData = await cache.get(key);
+    if (cachedData) return cachedData;
+    
+    // Nếu không có trong cache, gọi hàm để lấy dữ liệu
+    const newData = await dataFn();
+    
+    // Lưu vào cache và trả về
+    await cache.set(key, newData, ttl);
+    return newData;
+}
 
 const instance = {
     // Tạo công việc mới
@@ -8,7 +21,7 @@ const instance = {
         const jobId = uuidv4();
         const createdAt = Date.now();
 
-        await cache.set(`job_${jobId}`, {
+        await cache.setWithPriority(`job_${jobId}`, {
             id: jobId,
             status: 'pending',
             currentStep: null,
@@ -26,8 +39,8 @@ const instance = {
             // Cập nhật trạng thái job
             await this.updateJobStatus(jobId, 'processing');
 
-            // Bắt đầu quy trình OCR -> Translate -> PDF
-            await processOCR(imagePath, jobId);
+            // Bắt đầu quy trình Preprocess -> OCR -> Translate -> PDF
+            await processPreprocess(imagePath, jobId);
 
             return jobId;
         } catch (error) {
@@ -55,7 +68,7 @@ const instance = {
             updatedJob.message = message;
         }
 
-        await cache.set(jobKey, updatedJob);
+        await cache.setWithPriority(jobKey, updatedJob);
 
         return updatedJob;
     },

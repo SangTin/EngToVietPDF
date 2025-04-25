@@ -4,65 +4,76 @@ const cache = require('../utils/cache');
 const JobManager = require('../utils/job-manager');
 const crypto = require('crypto');
 const fs = require('fs').promises;
+const monitor = require('../utils/monitoring');
+const { Semaphore } = require('async-mutex');
+const imageProcessor = require('../utils/image-processor');
 
-// Tạo hash của file để làm key cache
-function generateFileHash(filePath) {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const fileBuffer = await fs.readFile(filePath);
-            const hashSum = crypto.createHash('md5');
-            hashSum.update(fileBuffer);
-            const hex = hashSum.digest('hex');
-            resolve(hex);
-        } catch (error) {
-            reject(error);
-        }
-    });
-}
+// Sử dụng semaphore để giới hạn số lượng worker đồng thời
+const MAX_CONCURRENT_WORKERS = 3;
+const semaphore = new Semaphore(MAX_CONCURRENT_WORKERS);
 
 async function processOCRJob(data) {
     const { imagePath, jobId } = data;
 
     try {
+        // Bắt đầu đo hiệu năng
+        monitor.startMeasure('ocr_process', jobId);
+        
         await JobManager.updateJobStatus(jobId, 'processing', 'ocr');
+        console.log(`Bắt đầu xử lý OCR cho job ${jobId}: ${imagePath}`);
 
-        // Tạo key cache dựa trên hash của file
-        const fileHash = await generateFileHash(imagePath);
-        const cacheKey = `ocr_${fileHash}`;
+        return await semaphore.runExclusive(async () => {
+            // Kiểm tra xem có ảnh đã tiền xử lý không
+            const preprocessedKey = `job_${jobId}_preprocessed`;
+            const preprocessedPath = await cache.get(preprocessedKey) || imagePath;
+            
+            // Tạo key cache dựa trên file gốc
+            const cacheKey = cache.generateCacheKey(imagePath, cache.CACHE_TYPES.OCR);
+            
+            // Kiểm tra cache
+            let extractedText = await cache.get(cacheKey);
 
-        // Kiểm tra cache
-        const cachedText = await cache.get(cacheKey);
+            if (extractedText) {
+                console.log(`Sử dụng kết quả OCR từ cache cho job ${jobId}`);
+                await monitor.recordMetric('cache_hit', 1, jobId);
+            } else {
+                // Thực hiện OCR
+                console.log(`Đang thực hiện OCR cho ảnh: ${preprocessedPath}`);
+                monitor.startMeasure('ocr_execution', jobId);
+                
+                extractedText = await ocr.image2text(preprocessedPath);
+                
+                const ocrTime = await monitor.endMeasure('ocr_execution', jobId);
+                console.log(`Thực hiện OCR hoàn thành trong ${ocrTime?.toFixed(2) || '?'}ms`);
+                
+                // Lưu kết quả vào cache
+                await cache.setWithPriority(cacheKey, extractedText);
+                await monitor.recordMetric('cache_miss', 1, jobId);
+            }
 
-        let extractedText;
-        if (cachedText) {
-            console.log(`Sử dụng kết quả OCR từ cache cho: ${imagePath}`);
-            extractedText = cachedText;
-        } else {
-            console.log(`Đang thực hiện OCR cho ảnh: ${imagePath}`);
-            extractedText = await ocr.image2text(imagePath);
+            // Lưu kết quả OCR cho job hiện tại
+            const jobKey = `job_${jobId}_ocr`;
+            await cache.setWithPriority(jobKey, extractedText);
 
-            // Lưu kết quả vào cache
-            // Sử dụng thời gian hết hạn mặc định hoặc có thể tùy chỉnh
-            await cache.set(cacheKey, extractedText);
-        }
+            // Chuyển tiếp dữ liệu đến hàng đợi dịch thuật
+            console.log(`Đang gửi job ${jobId} đến translate_queue`);
+            await processTranslation(extractedText, jobId);
+            await JobManager.updateJobStatus(jobId, 'processing', 'translate');
 
-        // Lưu kết quả OCR cho job hiện tại
-        const jobKey = `job_${jobId}_ocr`;
-        await cache.set(jobKey, extractedText);
-
-        // Chuyển tiếp dữ liệu đến hàng đợi dịch thuật
-        await processTranslation(extractedText, jobId);
-        await JobManager.updateJobStatus(jobId, 'processing', 'translate');
-
-        console.log(`Hoàn thành OCR cho job ${jobId}`);
+            // Kết thúc đo thời gian
+            const totalTime = await monitor.endMeasure('ocr_process', jobId);
+            
+            console.log(`OCR cho job ${jobId} hoàn thành trong ${totalTime?.toFixed(2) || '?'}ms`);
+            return extractedText;
+        });
     } catch (error) {
-        console.error('Lỗi trong quá trình OCR:', error);
+        console.error(`Lỗi trong quá trình OCR job ${jobId}:`, error);
         throw error;
     }
 }
 
 async function startOCRWorker() {
-    await consumeQueue(QUEUES.OCR, processOCRJob);
+    await consumeQueue(QUEUES.OCR, processOCRJob, MAX_CONCURRENT_WORKERS);
     console.log('OCR Worker đã bắt đầu');
 }
 

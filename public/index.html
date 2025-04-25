@@ -165,7 +165,7 @@
         <div class="upload-area" id="uploadArea">
             <i class="bi bi-cloud-arrow-up"></i>
             <h4>Kéo thả, nhấp để chọn, hoặc dán hình ảnh vào đây</h4>
-            <p class="text-muted">Hỗ trợ: JPG, JPEG, PNG, GIF</p>
+            <p class="text-muted">Hỗ trợ: JPG, JPEG, PNG</p>
             <input type="file" id="fileInput" accept="image/*" style="display: none;" />
             <img id="previewImage" class="preview-image" style="display: none;" />
         </div>
@@ -235,16 +235,6 @@
         <div class="result-section" id="resultSection">
             <h3>Kết quả</h3>
 
-            <div class="mb-4">
-                <h5>Văn bản gốc (Tiếng Anh):</h5>
-                <div class="text-box" id="originalText"></div>
-            </div>
-
-            <div class="mb-4">
-                <h5>Văn bản đã dịch (Tiếng Việt):</h5>
-                <div class="text-box" id="translatedText"></div>
-            </div>
-
             <div class="text-center">
                 <a id="downloadPdfButton" class="btn btn-success btn-lg" target="_blank">
                     <i class="bi bi-file-earmark-pdf"></i> Tải về PDF
@@ -266,7 +256,6 @@
             const progressSection = document.getElementById('progressSection');
             const resultSection = document.getElementById('resultSection');
             const originalText = document.getElementById('originalText');
-            const translatedText = document.getElementById('translatedText');
             const downloadPdfButton = document.getElementById('downloadPdfButton');
             const errorMessage = document.getElementById('errorMessage');
             const processingStatusAlert = document.getElementById('processingStatusAlert');
@@ -542,9 +531,6 @@
 
                 // Hiển thị văn bản OCR và văn bản đã dịch
                 if (job.result) {
-                    originalText.textContent = job.result.ocr || 'Không có dữ liệu';
-                    translatedText.textContent = job.result.translate || 'Không có dữ liệu';
-
                     // Cập nhật URL tải xuống PDF
                     downloadPdfButton.href = `/api/download/${currentJobId}`;
                 }
