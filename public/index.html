@@ -475,6 +475,7 @@
             fileItem.id = fileId;
             fileItem.dataset.index = index;
             fileItem.dataset.filename = file.name;
+            fileItem.title = file.name;
             fileItem.dataset.processed = 'false';
             fileItem.dataset.processing = 'false';
             
@@ -723,14 +724,20 @@
 
                 // Monitor job status for each file
                 data.jobs.forEach((jobInfo, index) => {
-                    const fileItem = fileItemsToProcess.find(item => 
-                        !data.invalidFiles || 
-                        !data.invalidFiles.some(file => file.filename === item.dataset.filename)
+                    // Find the corresponding file item that matches this job's filename
+                    const fileItemIndex = fileItemsToProcess.findIndex(item => 
+                        item.dataset.filename === jobInfo.filename && 
+                        (!data.invalidFiles || 
+                         !data.invalidFiles.some(file => file.filename === item.dataset.filename))
                     );
                     
-                    if (fileItem) {
+                    if (fileItemIndex !== -1) {
+                        const fileItem = fileItemsToProcess[fileItemIndex];
                         fileItem.dataset.jobId = jobInfo.jobId;
                         monitorJobStatus(jobInfo.jobId, fileItem);
+                        
+                        // Remove the processed item from the array to avoid processing it again
+                        fileItemsToProcess.splice(fileItemIndex, 1);
                     }
                 });
 
@@ -960,9 +967,9 @@
                     <div class="max-h-64 overflow-y-auto">
                         <ul class="space-y-2">
                             ${invalidFiles.map(file => `
-                                <li class="flex justify-between items-center bg-red-50 p-2 rounded">
-                                    <span class="font-medium">${file.name}</span>
-                                    <span class="text-red-600 text-sm">${file.reason}</span>
+                                <li class="grid grid-cols-10 gap-2 bg-red-50 p-2 rounded items-center">
+                                    <span class="font-medium truncate col-span-7" title="${file.name}">${file.name}</span>
+                                    <span class="text-red-600 text-sm text-right col-span-3">${file.reason}</span>
                                 </li>
                             `).join('')}
                         </ul>
