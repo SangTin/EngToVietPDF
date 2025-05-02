@@ -111,6 +111,7 @@ async function consumeQueue(queueName, callback, maxConcurrent = 1) {
         const { channel } = await connect();
 
         console.log(`Đang chờ tin nhắn từ hàng đợi ${queueName}...`);
+        console.log(`Số lượng tin nhắn tối đa đồng thời: ${maxConcurrent}`);
 
         channel.prefetch(maxConcurrent);
 

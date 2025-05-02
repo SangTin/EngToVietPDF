@@ -5,7 +5,7 @@ const JobManager = require('../utils/job-manager');
 const { Semaphore } = require('async-mutex');
 const monitor = require('../utils/monitoring');
 
-const MAX_CONCURRENT_WORKERS = 3;
+const MAX_CONCURRENT_WORKERS = parseInt(process.env.MAX_CONCURRENT_TRANSLATE_WORKERS, 10) || 3;
 const semaphore = new Semaphore(MAX_CONCURRENT_WORKERS);
 
 async function processTranslationJob(data) {

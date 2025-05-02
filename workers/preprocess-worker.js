@@ -8,7 +8,7 @@ const monitor = require('../utils/monitoring');
 const { Semaphore } = require('async-mutex');
 
 // Giới hạn xử lý đồng thời
-const MAX_CONCURRENT = 3;
+const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_PREPROCESS_WORKERS, 10) || 3;
 const semaphore = new Semaphore(MAX_CONCURRENT);
 
 // Tạo hash của file để làm key cache

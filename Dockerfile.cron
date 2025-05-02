@@ -1,0 +1,18 @@
+FROM node:22-slim
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+
+COPY cleanup-expired-files.js ./
+
+# Cài đặt cron
+RUN apt-get update && apt-get install -y cron
+
+# Tạo crontab
+RUN echo "0 3 * * * cd /app && node cleanup-expired-files.js >> /var/log/cleanup-files.log 2>&1" > /etc/cron.d/cleanup-cron
+RUN chmod 0644 /etc/cron.d/cleanup-cron
+RUN crontab /etc/cron.d/cleanup-cron
+
+# Khởi động cron
+CMD ["cron", "-f"]

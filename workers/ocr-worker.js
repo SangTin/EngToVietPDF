@@ -9,7 +9,7 @@ const { Semaphore } = require('async-mutex');
 const imageProcessor = require('../utils/image-processor');
 
 // Sử dụng semaphore để giới hạn số lượng worker đồng thời
-const MAX_CONCURRENT_WORKERS = 3;
+const MAX_CONCURRENT_WORKERS = parseInt(process.env.MAX_CONCURRENT_OCR_WORKERS, 10) || 3;
 const semaphore = new Semaphore(MAX_CONCURRENT_WORKERS);
 
 async function processOCRJob(data) {

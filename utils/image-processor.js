@@ -1,6 +1,5 @@
 const sharp = require('sharp');
 sharp.simd(true);
-sharp.concurrency(4);
 
 const path = require('path');
 const fs = require('fs').promises;

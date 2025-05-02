@@ -34,54 +34,6 @@ const instance = {
         return jobId;
     },
 
-    async cleanupCompletedJob(jobId) {
-        try {
-            const job = await this.getJob(jobId);
-            
-            if (job && job.status === 'completed') {
-                // Xóa tập tin gốc và tiền xử lý nếu có
-                const imagePath = await cache.get(`job_${jobId}_original`);
-                const preprocessedPath = await cache.get(`job_${jobId}_preprocessed`);
-                
-                if (imagePath && imagePath !== preprocessedPath) {
-                    try {
-                        await fs.access(imagePath);
-                        await fs.unlink(imagePath);
-                        console.log(`Đã xóa tập tin gốc: ${imagePath}`);
-                    } catch (err) {
-                        // Tập tin không tồn tại hoặc không thể xóa
-                        console.error(`Không thể xóa tập tin gốc ${imagePath}:`, err);
-                    }
-                }
-                
-                if (preprocessedPath && preprocessedPath === imagePath) {
-                    try {
-                        await fs.access(preprocessedPath);
-                        await fs.unlink(preprocessedPath);
-                        console.log(`Đã xóa tập tin tiền xử lý: ${preprocessedPath}`);
-                    } catch (err) {
-                        // Tập tin không tồn tại hoặc không thể xóa
-                        console.error(`Không thể xóa tập tin tiền xử lý ${preprocessedPath}:`, err);
-                    }
-                }
-                
-                // Chỉ giữ lại kết quả PDF và xóa các cache trung gian
-                await cache.remove(`job_${jobId}_ocr`);
-                await cache.remove(`job_${jobId}_preprocessed`);
-                
-                // Cập nhật thông tin job
-                await this.updateJobStatus(jobId, 'archived');
-                
-                return true;
-            }
-            
-            return false;
-        } catch (error) {
-            console.error(`Lỗi khi dọn dẹp job ${jobId}:`, error);
-            return false;
-        }
-    },
-
     // Bắt đầu quy trình xử lý ảnh
     async startImageProcessing(imagePath, jobId) {
         try {

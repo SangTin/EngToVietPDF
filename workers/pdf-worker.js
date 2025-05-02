@@ -7,7 +7,7 @@ const JobManager = require('../utils/job-manager');
 const { Semaphore } = require('async-mutex');
 const monitor = require('../utils/monitoring');
 
-const MAX_CONCURRENT_WORKERS = 3;
+const MAX_CONCURRENT_WORKERS = parseInt(process.env.MAX_CONCURRENT_PDF_WORKERS, 10) || 3;
 const semaphore = new Semaphore(MAX_CONCURRENT_WORKERS);
 
 // Tạo key cache duy nhất cho văn bản
@@ -56,7 +56,6 @@ async function processPDFJob(data) {
             // Đánh dấu job hoàn thành
             await monitor.endMeasure('pdf_process', jobId);
             await JobManager.updateJobStatus(jobId, 'completed', 'pdf');
-            await JobManager.cleanupCompletedJob(jobId);
 
             console.log(`Hoàn thành tạo PDF cho job ${jobId}: ${pdfFile}`);
             return pdfFile;

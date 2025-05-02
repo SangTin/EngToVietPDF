@@ -21,6 +21,10 @@ services:
       - "6380:6379"
     volumes:
       - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1G
   web-server:
     build: .
     container_name: ocr-web-server
@@ -54,10 +58,11 @@ services:
       - REDIS_URL=redis://ocr-redis:6379
       - RABBITMQ_URL=amqp://guest:guest@ocr-rabbitmq
       - UV_THREADPOOL_SIZE=4
+      - MAX_CONCURRENT_PREPROCESS_WORKERS=3
     deploy:
       resources:
         limits:
-          cpus: '2.0'
+          cpus: '4.0'
           memory: 2G
         reservations:
           devices:
@@ -78,6 +83,12 @@ services:
     environment:
       - REDIS_URL=redis://ocr-redis:6379
       - RABBITMQ_URL=amqp://guest:guest@ocr-rabbitmq
+      - MAX_CONCURRENT_OCR_WORKERS=3
+    deploy:
+      resources:
+        limits:
+          cpus: '5.0'
+          memory: 2G
   translate-worker:
     build: .
     container_name: translate-worker
@@ -93,6 +104,12 @@ services:
     environment:
       - REDIS_URL=redis://ocr-redis:6379
       - RABBITMQ_URL=amqp://guest:guest@ocr-rabbitmq
+      - MAX_CONCURRENT_TRANSLATE_WORKERS=3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   pdf-worker:
     build: .
@@ -109,6 +126,29 @@ services:
     environment:
       - REDIS_URL=redis://ocr-redis:6379
       - RABBITMQ_URL=amqp://guest:guest@ocr-rabbitmq
+      - MAX_CONCURRENT_PDF_WORKERS=2
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  cleanup-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile.cron
+    volumes:
+      - shared_data:/app/uploads
+      - shared_data:/app/output
+    environment:
+      - REDIS_URL=redis://ocr-redis:6379
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
 volumes:
   redis_data:

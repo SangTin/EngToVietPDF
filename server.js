@@ -7,6 +7,7 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const JobManager = require('./utils/job-manager');
 const cacheApiRoutes = require('./utils/cache-api');
+const cache = require('./utils/cache');
 const auth = require('./utils/auth');
 const cookieParser = require('cookie-parser');
 
@@ -58,6 +59,7 @@ const UPLOAD_DIR = './uploads';
 if (!fsSync.existsSync(UPLOAD_DIR)) {
   fsSync.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
+app.use('/uploads', express.static(UPLOAD_DIR));
 
 // Cấu hình multer để lưu trữ file tải lên
 const storage = multer.diskStorage({
@@ -173,29 +175,32 @@ app.post('/api/process-images', (req, res) => {
     }
 
     try {
+      const indexes = req.body.indexes || [];
+
       // Mảng chứa các file hợp lệ
       const validFiles = [];
       const invalidFiles = [];
       
       // Kiểm tra từng file
-      for (const file of req.files) {
+      await Promise.all(req.files.map(async (file, i) => {
         const validation = await validateImageFile(file.path);
         
         if (validation.valid) {
           validFiles.push({
             ...file,
-            validatedType: validation.type
+            validatedType: validation.type,
+            index: parseInt(indexes[i] || -1)
           });
         } else {
           // Xóa file không hợp lệ
           await fs.unlink(file.path).catch(e => console.error(`Lỗi xóa file: ${e}`));
           
           invalidFiles.push({
-            filename: file.originalname,
+            index: parseInt(indexes[i] || -1),
             reason: 'Định dạng file không hợp lệ'
           });
         }
-      }
+      }));
       
       // Nếu không có file hợp lệ nào
       if (validFiles.length === 0) {
@@ -228,7 +233,7 @@ app.post('/api/process-images', (req, res) => {
             .catch(error => console.error(`Lỗi xử lý job ${jobId}:`, error));
           
           return {
-            filename: file.originalname,
+            index: parseInt(file.index),
             jobId
           };
         })
@@ -381,6 +386,53 @@ app.get('/api/job/:jobId', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Đã xảy ra lỗi khi kiểm tra trạng thái job',
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/preview/:jobId', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = await JobManager.getJobResult(jobId);
+    
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy job'
+      });
+    }
+    
+    // Fetch OCR and translated text for preview
+    const ocrText = await cache.get(`job_${jobId}_ocr`) || '';
+    const translatedText = await cache.get(`job_${jobId}_translate`) || '';
+    
+    // Get the original image path
+    const originalImagePath = await cache.get(`job_${jobId}_original`);
+    let imageUrl = null;
+    
+    if (originalImagePath) {
+      // Extract filename from path
+      const filename = originalImagePath.split('/').pop();
+      // Create a URL to serve the image (you'll need to serve the uploads directory)
+      imageUrl = `/uploads/${filename}`;
+    }
+    
+    res.json({
+      success: true,
+      preview: {
+        jobId,
+        status: job.status,
+        ocrText: ocrText.substring(0, 300) + (ocrText.length > 300 ? '...' : ''),
+        translatedText: translatedText.substring(0, 300) + (translatedText.length > 300 ? '...' : ''),
+        imageUrl
+      }
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy dữ liệu preview:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Đã xảy ra lỗi khi lấy dữ liệu preview',
       error: error.message
     });
   }
