@@ -2,6 +2,13 @@
 
 Dịch vụ web tích hợp OCR, dịch thuật và tạo PDF với kiến trúc microservice và hệ thống hàng đợi.
 
+## Thành viên nhóm
+| Tên | Mã sinh viên | Đóng góp (%) |
+|:----------|---------------:|-------------:|
+| Nguyễn Văn Sáng | 22021159 | 33.33 | 
+| Nguyễn Minh Hiển | 22021106 | 33.33 | 
+| Trần Thanh Thảo | 22021157 | 33.33 | 
+
 ## Tổng quan hệ thống
 
 Hệ thống OCR-Translate-PDF là một ứng dụng web cho phép người dùng tải lên hình ảnh có chứa văn bản tiếng Anh, thực hiện nhận dạng ký tự quang học (OCR), dịch văn bản sang tiếng Việt và tạo tệp PDF với nội dung đã dịch.
